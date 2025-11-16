@@ -5,6 +5,7 @@
  */
 
 require_once(__DIR__ . '/fpdf.php');
+require_once(__DIR__ . '/generar-timbre-pdf417.php');
 
 class BoletaPDF extends FPDF {
     private $datos_boleta;
@@ -284,7 +285,7 @@ class BoletaPDF extends FPDF {
     }
 
     /**
-     * Timbraje electrónico
+     * Timbraje electrónico con código PDF417
      */
     private function timbraje() {
         // Línea separadora
@@ -293,8 +294,72 @@ class BoletaPDF extends FPDF {
 
         $this->SetFont('Arial', '', 7);
 
-        // Timbre electrónico SII
+        // Título del timbre electrónico SII
         $this->Cell(0, 3, 'TIMBRE ELECTRONICO SII', 0, 1, 'C');
+        $this->Ln(1);
+
+        // Generar código PDF417 del timbre
+        try {
+            // Generar imagen PDF417 en memoria
+            $imagen_pdf417 = generar_timbre_pdf417($this->dte_xml, null, [
+                'columns' => 12,           // Reducido para ticket 80mm
+                'security_level' => 5,     // Nivel 5 requerido por SII
+                'scale' => 1,              // Escala pequeña para ticket
+                'ratio' => 2,              // Ratio ajustado
+                'padding' => 2,            // Padding mínimo
+            ]);
+
+            if ($imagen_pdf417) {
+                // Guardar temporalmente
+                $temp_file = sys_get_temp_dir() . '/timbre_' . uniqid() . '.png';
+                file_put_contents($temp_file, $imagen_pdf417);
+
+                // Obtener dimensiones de la imagen
+                $img_info = getimagesize($temp_file);
+                $img_width_px = $img_info[0];
+                $img_height_px = $img_info[1];
+
+                // Convertir a mm (asumiendo 96 DPI)
+                $img_width_mm = ($img_width_px * 25.4) / 96;
+                $img_height_mm = ($img_height_px * 25.4) / 96;
+
+                // Ajustar al ancho del ticket (máximo 70mm para dejar márgenes)
+                $max_width = 70;
+                if ($img_width_mm > $max_width) {
+                    $ratio = $max_width / $img_width_mm;
+                    $img_width_mm = $max_width;
+                    $img_height_mm *= $ratio;
+                }
+
+                // Centrar horizontalmente
+                $x = (80 - $img_width_mm) / 2;
+
+                // Agregar imagen al PDF
+                $this->Image($temp_file, $x, $this->GetY(), $img_width_mm, $img_height_mm, 'PNG');
+
+                // Mover Y después de la imagen
+                $this->SetY($this->GetY() + $img_height_mm);
+
+                // Eliminar archivo temporal
+                @unlink($temp_file);
+
+                $this->Ln(2);
+            } else {
+                // Si falla, mostrar información básica del timbre
+                $this->mostrarInfoTimbreBasica();
+            }
+        } catch (Exception $e) {
+            error_log("Error generando PDF417: " . $e->getMessage());
+            // Mostrar información básica si falla el PDF417
+            $this->mostrarInfoTimbreBasica();
+        }
+    }
+
+    /**
+     * Mostrar información básica del timbre (fallback si PDF417 falla)
+     */
+    private function mostrarInfoTimbreBasica() {
+        $this->SetFont('Arial', '', 7);
 
         // Folio
         $folio = (string) $this->xml->Documento->Encabezado->IdDoc->Folio;
