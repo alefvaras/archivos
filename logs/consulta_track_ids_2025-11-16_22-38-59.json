@@ -1,0 +1,47 @@
+{
+    "fecha_consulta": "2025-11-16 22:38:59",
+    "track_ids_consultados": [
+        25791022
+    ],
+    "resultados": {
+        "25791022": {
+            "exito": true,
+            "estado": {
+                "rutEmisor": "78274225-6",
+                "rutEnvia": "16694181-4",
+                "trackId": 25791022,
+                "fechaRecepcion": "16\/11\/2025 19:37:14",
+                "estado": "EPR",
+                "response": null,
+                "estadistica": [
+                    {
+                        "tipo": 39,
+                        "informados": 1,
+                        "aceptados": 0,
+                        "rechazados": 1,
+                        "reparos": 0
+                    }
+                ],
+                "detalles": [
+                    {
+                        "tipo": 39,
+                        "folio": 1890,
+                        "estado": "RCH",
+                        "descripcion": "DTE Rechazado",
+                        "errores": [
+                            {
+                                "seccion": "DTE",
+                                "linea": 0,
+                                "nivel": 3,
+                                "codigo": 100,
+                                "descripcion": "DTE Repetido (TipDoc, Folio, FchEmis, IVA, MntTot, RUTRecep)",
+                                "detalle": null
+                            }
+                        ]
+                    }
+                ],
+                "errores": ""
+            }
+        }
+    }
+}
