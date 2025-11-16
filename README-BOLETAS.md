@@ -15,9 +15,10 @@ Sistema automatizado para generar, enviar y gestionar Boletas Electrónicas (DTE
 ## Archivos del Sistema
 
 - `generar-boleta.php` - Script principal del sistema
-- `ejemplo-uso-boletas.php` - Ejemplos de uso
-- `test-simple-dte.php` - Script de pruebas para certificación
-- `folios_usados.txt` - Control automático de folios
+- `ejemplo-uso-boletas.php` - Ejemplos de uso interactivos
+- `gestor-cafs.php` - Gestor de archivos CAF (cambiar entre múltiples CAFs)
+- `test-simple-dte.php` - Script de pruebas para certificación SII
+- `folios_usados.txt` - Control automático de folios usados
 
 ## Configuración
 
@@ -212,7 +213,34 @@ $resultado = [
 
 El sistema controla automáticamente los folios usados mediante el archivo `folios_usados.txt`. Cada vez que se genera una boleta, el folio se incrementa automáticamente.
 
-Para reiniciar el control de folios (solo en desarrollo):
+### Advertencias Automáticas
+
+El sistema automáticamente:
+- Muestra archivos CAF disponibles al generar boletas
+- Advierte cuando quedan menos de 10 folios
+- Proporciona instrucciones para solicitar más folios al SII
+
+### Gestor de CAFs
+
+Para gestionar múltiples archivos CAF:
+
+```bash
+php gestor-cafs.php
+```
+
+**Opciones disponibles:**
+1. Mostrar información detallada de un CAF
+2. Cambiar CAF actual
+3. Resetear contador de folios
+4. Listar CAFs por fecha
+
+El gestor permite:
+- Ver todos los archivos CAF disponibles
+- Ver folios restantes en cada CAF
+- Cambiar entre CAFs cuando se agoten los folios
+- Resetear el contador de folios
+
+Para reiniciar el control de folios manualmente (solo en desarrollo):
 
 ```bash
 rm folios_usados.txt
@@ -246,7 +274,7 @@ if ($estado) {
 
 ## Envío de Emails
 
-El sistema soporta envío automático de emails con la boleta adjunta.
+El sistema soporta envío automático de emails con la boleta adjunta en formato XML.
 
 ### Configuración de Email
 
@@ -255,18 +283,42 @@ $CONFIG['envio_automatico_email'] = true;
 $CONFIG['email_remitente'] = 'boletas@akibara.cl';
 ```
 
+### Integración con MailPoet
+
+El sistema está integrado con **MailPoet** para WordPress y utiliza un sistema de fallback inteligente:
+
+**Orden de prioridad:**
+1. **MailPoet** (`mailpoet_send_transactional_email`) - Preferido
+2. **wp_mail()** - Fallback para WordPress
+3. **mail()** de PHP - Fallback final (sin adjuntos)
+
+**Características del email:**
+- ✅ Diseño HTML responsive
+- ✅ Información completa de la boleta
+- ✅ Archivo XML adjunto
+- ✅ Personalizado con nombre del cliente
+- ✅ Formato moneda chileno
+
+### Template del Email
+
+El email incluye:
+- Folio de la boleta
+- Fecha de emisión
+- Total formateado
+- Datos del emisor
+- XML de la boleta adjunto
+
 ### Personalizar Email
 
 Editar la función `enviar_email()` en `generar-boleta.php` para personalizar:
 - Asunto del email
-- Contenido HTML
-- Formato del PDF adjunto
+- Contenido HTML y estilos CSS
+- Colores y diseño
+- Información adicional
 
-**Nota:** La implementación actual simula el envío. Para producción, integrar con:
-- PHPMailer
-- SendGrid
-- Mailgun
-- AWS SES
+**Para desarrollo/testing:**
+- Si MailPoet no está disponible, el sistema usa wp_mail()
+- Si WordPress no está disponible, usa mail() (sin adjuntos)
 
 ## Ambiente de Certificación vs Producción
 

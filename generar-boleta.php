@@ -74,12 +74,58 @@ function obtener_siguiente_folio($caf_info) {
     $ultimo_folio = (int) file_get_contents($control_file);
     $siguiente_folio = $ultimo_folio + 1;
 
+    // Verificar si quedan folios disponibles
     if ($siguiente_folio > $caf_info['folio_hasta']) {
-        throw new Exception("No hay más folios disponibles en el CAF actual");
+        throw new Exception("No hay más folios disponibles en el CAF actual. Por favor, genere un nuevo CAF en el portal del SII.");
+    }
+
+    // Advertir si quedan pocos folios (menos de 10)
+    $folios_restantes = $caf_info['folio_hasta'] - $siguiente_folio + 1;
+    if ($folios_restantes <= 10) {
+        echo "  ⚠️  ADVERTENCIA: Quedan solo {$folios_restantes} folios disponibles\n";
+        echo "     Por favor, genere un nuevo CAF en el portal del SII pronto\n\n";
     }
 
     file_put_contents($control_file, $siguiente_folio);
     return $siguiente_folio;
+}
+
+/**
+ * Solicitar más folios automáticamente (preparación para futura integración)
+ * NOTA: Actualmente el SII NO permite solicitar folios vía API
+ * Los folios deben solicitarse manualmente en https://mipyme.sii.cl
+ */
+function verificar_y_solicitar_folios($caf_info, $cantidad = 50) {
+    $folios_restantes = $caf_info['folio_hasta'] - $caf_info['folio_desde'] + 1;
+
+    // Buscar si hay otros archivos CAF disponibles
+    $caf_files = glob(__DIR__ . '/FoliosSII*.xml');
+
+    echo "  📋 Archivos CAF disponibles:\n";
+    foreach ($caf_files as $idx => $file) {
+        $temp_caf = simplexml_load_string(file_get_contents($file));
+        $temp_desde = (int) ((string) $temp_caf->CAF->DA->RNG->D);
+        $temp_hasta = (int) ((string) $temp_caf->CAF->DA->RNG->H);
+        $temp_disponibles = $temp_hasta - $temp_desde + 1;
+
+        $es_actual = (basename($file) === basename(CAF_PATH)) ? ' (ACTUAL)' : '';
+        echo "     " . ($idx + 1) . ". " . basename($file) . " - Folios: {$temp_desde}-{$temp_hasta} ({$temp_disponibles} disponibles){$es_actual}\n";
+    }
+
+    if ($folios_restantes < 10) {
+        echo "\n  ⚠️  ACCIÓN REQUERIDA:\n";
+        echo "     Quedan menos de 10 folios en el CAF actual\n";
+        echo "     Por favor, siga estos pasos:\n";
+        echo "     1. Ingrese a https://mipyme.sii.cl\n";
+        echo "     2. Vaya a 'Folios' → 'Generar Folios'\n";
+        echo "     3. Solicite {$cantidad} folios para DTE tipo 39 (Boleta Electrónica)\n";
+        echo "     4. Descargue el archivo CAF y guárdelo en: " . __DIR__ . "\n";
+        echo "     5. Actualice CAF_PATH en el script\n\n";
+
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -356,7 +402,7 @@ function consultar_estado($track_id, $api_base) {
 }
 
 /**
- * Enviar boleta por email
+ * Enviar boleta por email usando MailPoet
  */
 function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
     // Parsear XML para obtener datos
@@ -365,40 +411,153 @@ function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
     $fecha = (string) $xml->Documento->Encabezado->IdDoc->FchEmis;
     $total = (string) $xml->Documento->Encabezado->Totales->MntTotal;
 
-    // Guardar PDF temporal (en producción, generar PDF real)
-    $pdf_filename = "boleta_{$folio}.pdf";
-    $xml_filename = "boleta_{$folio}.xml";
+    // Obtener nombre del cliente
+    $nombre_cliente = isset($datos_boleta['Documento']['Encabezado']['Receptor']['RazonSocial'])
+        ? $datos_boleta['Documento']['Encabezado']['Receptor']['RazonSocial']
+        : 'Cliente';
 
-    // Asunto y mensaje
+    // Guardar XML temporalmente para adjuntar
+    $xml_filename = "boleta_{$folio}.xml";
+    $xml_path = sys_get_temp_dir() . '/' . $xml_filename;
+    file_put_contents($xml_path, $dte_xml);
+
+    // Asunto
     $asunto = "Boleta Electrónica N° {$folio} - " . RAZON_SOCIAL;
-    $mensaje = "
+
+    // Mensaje HTML
+    $mensaje = '
+    <!DOCTYPE html>
     <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body { font-family: Arial, sans-serif; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+            .content { background-color: #f9f9f9; padding: 20px; margin-top: 20px; }
+            .details { background-color: white; padding: 15px; margin: 10px 0; border-left: 4px solid #4CAF50; }
+            .footer { text-align: center; margin-top: 20px; color: #777; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 8px 0; }
+            .label { font-weight: bold; color: #555; }
+        </style>
+    </head>
     <body>
-        <h2>Boleta Electrónica</h2>
-        <p>Estimado cliente,</p>
-        <p>Adjunto encontrará su Boleta Electrónica con los siguientes datos:</p>
-        <ul>
-            <li><strong>Folio:</strong> {$folio}</li>
-            <li><strong>Fecha:</strong> {$fecha}</li>
-            <li><strong>Total:</strong> \${$total}</li>
-            <li><strong>Emisor:</strong> " . RAZON_SOCIAL . "</li>
-        </ul>
-        <p>Gracias por su preferencia.</p>
+        <div class="container">
+            <div class="header">
+                <h2>Boleta Electrónica</h2>
+                <p>Folio N° ' . $folio . '</p>
+            </div>
+
+            <div class="content">
+                <p>Estimado/a <strong>' . htmlspecialchars($nombre_cliente) . '</strong>,</p>
+                <p>Adjunto encontrará su Boleta Electrónica con los siguientes datos:</p>
+
+                <div class="details">
+                    <table>
+                        <tr>
+                            <td class="label">Folio:</td>
+                            <td>' . $folio . '</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Fecha de Emisión:</td>
+                            <td>' . date('d/m/Y', strtotime($fecha)) . '</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Total:</td>
+                            <td><strong>$' . number_format($total, 0, ',', '.') . '</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="label">Emisor:</td>
+                            <td>' . RAZON_SOCIAL . '</td>
+                        </tr>
+                        <tr>
+                            <td class="label">RUT Emisor:</td>
+                            <td>' . RUT_EMISOR . '</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <p>Este documento tributario electrónico ha sido generado y timbrado por el Servicio de Impuestos Internos (SII).</p>
+                <p>Gracias por su preferencia.</p>
+            </div>
+
+            <div class="footer">
+                <p>' . RAZON_SOCIAL . ' - ' . RUT_EMISOR . '</p>
+                <p>Este es un email automático, por favor no responder.</p>
+            </div>
+        </div>
     </body>
     </html>
-    ";
+    ';
 
-    // Headers
+    // Intentar enviar con MailPoet si está disponible
+    if (function_exists('mailpoet_send_transactional_email')) {
+        // MailPoet 3.x transactional email
+        try {
+            $result = mailpoet_send_transactional_email([
+                'to' => $destinatario,
+                'subject' => $asunto,
+                'body' => $mensaje,
+                'from_name' => RAZON_SOCIAL,
+                'from_email' => $config['email_remitente'],
+                'attachments' => [$xml_path]
+            ]);
+
+            echo "  📧 Email enviado vía MailPoet a: {$destinatario}\n";
+            echo "     Asunto: {$asunto}\n";
+
+            // Limpiar archivo temporal
+            @unlink($xml_path);
+            return true;
+
+        } catch (Exception $e) {
+            echo "  ⚠️  Error MailPoet: " . $e->getMessage() . "\n";
+            echo "  🔄 Intentando con wp_mail()...\n";
+        }
+    }
+
+    // Fallback: usar wp_mail() si está disponible (WordPress)
+    if (function_exists('wp_mail')) {
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . RAZON_SOCIAL . ' <' . $config['email_remitente'] . '>'
+        ];
+
+        $attachments = [$xml_path];
+
+        $result = wp_mail($destinatario, $asunto, $mensaje, $headers, $attachments);
+
+        if ($result) {
+            echo "  📧 Email enviado vía wp_mail() a: {$destinatario}\n";
+            echo "     Asunto: {$asunto}\n";
+        } else {
+            echo "  ❌ Error al enviar email vía wp_mail()\n";
+        }
+
+        // Limpiar archivo temporal
+        @unlink($xml_path);
+        return $result;
+    }
+
+    // Fallback final: mail() de PHP (no recomendado para producción)
     $headers = "MIME-Version: 1.0\r\n";
     $headers .= "Content-type: text/html; charset=UTF-8\r\n";
-    $headers .= "From: {$config['email_remitente']}\r\n";
+    $headers .= "From: " . RAZON_SOCIAL . " <{$config['email_remitente']}>\r\n";
 
-    // En producción, usar una librería como PHPMailer
-    // Por ahora, solo simular el envío
-    echo "  📧 Email enviado a: {$destinatario}\n";
-    echo "     Asunto: {$asunto}\n";
+    $result = mail($destinatario, $asunto, $mensaje, $headers);
 
-    return true;
+    if ($result) {
+        echo "  📧 Email enviado vía mail() a: {$destinatario}\n";
+        echo "     Asunto: {$asunto}\n";
+        echo "     ⚠️  Nota: XML no adjuntado (usar MailPoet o wp_mail para adjuntos)\n";
+    } else {
+        echo "  ❌ Error al enviar email\n";
+    }
+
+    // Limpiar archivo temporal
+    @unlink($xml_path);
+    return $result;
 }
 
 // ========================================
@@ -416,7 +575,11 @@ function generar_boleta($datos_cliente, $items, $config, $api_base) {
     // 1. Leer CAF
     echo "📋 Paso 1: Leyendo CAF...\n";
     $caf_info = leer_caf(CAF_PATH);
-    echo "  ✓ CAF tipo {$caf_info['tipo_dte']}, folios {$caf_info['folio_desde']}-{$caf_info['folio_hasta']}\n\n";
+    echo "  ✓ CAF tipo {$caf_info['tipo_dte']}, folios {$caf_info['folio_desde']}-{$caf_info['folio_hasta']}\n";
+
+    // Verificar folios disponibles
+    verificar_y_solicitar_folios($caf_info, 50);
+    echo "\n";
 
     // 2. Obtener folio
     echo "📝 Paso 2: Obteniendo folio...\n";
