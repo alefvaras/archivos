@@ -241,38 +241,92 @@ if ($xml) {
 }
 echo "\n";
 
-// Paso 4: Construir sobre para envío al SII
-echo "📦 PASO 4: Construyendo sobre de envío (EnvioBoleta)...\n";
+// Paso 4: Generar sobre de envío firmado con Simple API
+echo "📦 PASO 4: Generando sobre de envío firmado (EnvioBoleta)...\n";
 echo "---------------------------------------------------\n";
 
-// Construir EnvioBoleta
-$sobre_xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n";
-$sobre_xml .= '<EnvioBOLETA xmlns="http://www.sii.cl/SiiDte" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0">' . "\n";
-$sobre_xml .= '<SetDTE ID="SetDTE">' . "\n";
-$sobre_xml .= '<Caratula version="1.0">' . "\n";
-$sobre_xml .= '<RutEmisor>' . RUT_EMISOR . '</RutEmisor>' . "\n";
-$sobre_xml .= '<RutEnvia>' . RUT_EMISOR . '</RutEnvia>' . "\n";
-$sobre_xml .= '<RutReceptor>60803000-K</RutReceptor>' . "\n"; // RUT del SII
-$sobre_xml .= '<FchResol>2025-11-16</FchResol>' . "\n";
-$sobre_xml .= '<NroResol>0</NroResol>' . "\n";
-$sobre_xml .= '<TmstFirmaEnv>' . date('Y-m-d\TH:i:s') . '</TmstFirmaEnv>' . "\n";
-$sobre_xml .= '<SubTotDTE>' . "\n";
-$sobre_xml .= '<TpoDTE>39</TpoDTE>' . "\n";
-$sobre_xml .= '<NroDTE>1</NroDTE>' . "\n";
-$sobre_xml .= '</SubTotDTE>' . "\n";
-$sobre_xml .= '</Caratula>' . "\n";
+$boundary3 = '----WebKitFormBoundary' . md5(time() . 'generar');
+$body3 = '';
 
-// Insertar el DTE generado (remover la declaración XML del DTE)
-$dte_sin_declaracion = preg_replace('/<\?xml[^?]*\?>\s*/i', '', $dte_xml);
-$sobre_xml .= $dte_sin_declaracion . "\n";
+// Configuración JSON para generar sobre
+$sobre_config = [
+    'Certificado' => [
+        'Rut' => '16694181-4',
+        'Password' => CERT_PASSWORD
+    ],
+    'Caratula' => [
+        'RutEmisor' => RUT_EMISOR,
+        'RutReceptor' => '60803000-K',
+        'FechaResolucion' => date('Y-m-d'),
+        'NumeroResolucion' => 0
+    ]
+];
 
-$sobre_xml .= '</SetDTE>' . "\n";
-$sobre_xml .= '</EnvioBOLETA>';
+$body3 .= '--' . $boundary3 . $eol;
+$body3 .= 'Content-Disposition: form-data; name="input"' . $eol . $eol;
+$body3 .= json_encode($sobre_config) . $eol;
+
+// Certificado
+$body3 .= '--' . $boundary3 . $eol;
+$body3 .= 'Content-Disposition: form-data; name="files"; filename="' . basename(CERT_PATH) . '"' . $eol;
+$body3 .= 'Content-Type: application/x-pkcs12' . $eol . $eol;
+$body3 .= file_get_contents(CERT_PATH) . $eol;
+
+// DTE XML
+$body3 .= '--' . $boundary3 . $eol;
+$body3 .= 'Content-Disposition: form-data; name="files"; filename="boleta.xml"' . $eol;
+$body3 .= 'Content-Type: text/xml' . $eol . $eol;
+$body3 .= $dte_xml . $eol;
+
+$body3 .= '--' . $boundary3 . '--' . $eol;
+
+$ch3 = curl_init($API_BASE . '/api/v1/envio/generar');
+curl_setopt_array($ch3, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $body3,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: ' . API_KEY,
+        'Content-Type: multipart/form-data; boundary=' . $boundary3,
+        'Content-Length: ' . strlen($body3)
+    ],
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => 0,
+    CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2,
+    CURLOPT_TIMEOUT => 60
+]);
+
+echo "📡 Generando sobre firmado vía Simple API...\n";
+$response3 = curl_exec($ch3);
+$http_code3 = curl_getinfo($ch3, CURLINFO_HTTP_CODE);
+$curl_error3 = curl_error($ch3);
+curl_close($ch3);
+
+if ($curl_error3) {
+    die("❌ Error CURL: $curl_error3\n");
+}
+
+echo "📥 Respuesta recibida (HTTP $http_code3)\n";
+
+if ($http_code3 != 200) {
+    echo "❌ Error HTTP: $http_code3\n";
+    echo "Respuesta: $response3\n";
+    die();
+}
+
+// El sobre firmado está en la respuesta
+$sobre_xml = $response3;
+
+// Validar que sea XML
+if (strpos($sobre_xml, '<?xml') === false) {
+    die("❌ Error: La respuesta no es XML válido\n$response3\n");
+}
 
 file_put_contents('/tmp/sobre_envio.xml', $sobre_xml);
-echo "✓ Sobre construido exitosamente\n";
+echo "✓ Sobre firmado generado exitosamente\n";
 echo "  Archivo: /tmp/sobre_envio.xml\n";
-echo "  Tamaño: " . strlen($sobre_xml) . " bytes\n\n";
+echo "  Tamaño: " . strlen($sobre_xml) . " bytes\n";
+echo "  Incluye firma digital del SetDTE: ✓\n\n";
 
 // Paso 5: Enviar sobre al SII
 echo "📤 PASO 5: Enviando sobre al SII vía Simple API...\n";
@@ -384,6 +438,8 @@ if ($xml_response) {
         // Extraer Track ID
         if (isset($result2['data']['track_id'])) {
             $track_id = $result2['data']['track_id'];
+        } elseif (isset($result2['trackId'])) {
+            $track_id = $result2['trackId'];
         } elseif (isset($result2['trackid'])) {
             $track_id = $result2['trackid'];
         } elseif (isset($result2['TRACKID'])) {
