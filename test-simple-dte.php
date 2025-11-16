@@ -76,8 +76,8 @@ $documento = [
             ],
             'Emisor' => [
                 'Rut' => RUT_EMISOR,
-                'RazonSocial' => RAZON_SOCIAL,
-                'Giro' => 'Comercio minorista de coleccionables',
+                'RazonSocialBoleta' => RAZON_SOCIAL,  // Para boletas usar RazonSocialBoleta
+                'GiroBoleta' => 'Comercio minorista de coleccionables',  // Para boletas usar GiroBoleta
                 'DireccionOrigen' => 'BARTOLO SOTO 3700 DP 1402 PISO 14',
                 'ComunaOrigen' => 'San Miguel'
             ],
@@ -89,7 +89,6 @@ $documento = [
             ],
             'Totales' => [
                 'MontoNeto' => $neto,
-                'TasaIVA' => 19,
                 'IVA' => $iva,
                 'MontoTotal' => $total_con_iva
             ]
