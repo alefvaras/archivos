@@ -9,6 +9,7 @@ require_once(__DIR__ . '/fpdf.php');
 class BoletaPDF extends FPDF {
     private $datos_boleta;
     private $dte_xml;
+    private $xml; // Declarar propiedad para evitar warning PHP 8.2+
 
     public function __construct($datos_boleta, $dte_xml) {
         parent::__construct('P', 'mm', array(80, 200)); // Tamaño ticket 80mm ancho
@@ -17,6 +18,13 @@ class BoletaPDF extends FPDF {
 
         // Parse XML para obtener datos adicionales
         $this->xml = simplexml_load_string($dte_xml);
+    }
+
+    /**
+     * Convertir texto UTF-8 a ISO-8859-1 para FPDF (PHP 8.2+ compatible)
+     */
+    private function utf8ToLatin1($text) {
+        return mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
     }
 
     /**
@@ -56,7 +64,7 @@ class BoletaPDF extends FPDF {
 
         // Nombre empresa
         $this->SetFont('Arial', 'B', 12);
-        $this->Cell(0, 5, utf8_decode($emisor['RazonSocialBoleta'] ?? $emisor['RazonSocial']), 0, 1, 'C');
+        $this->Cell(0, 5, $this->utf8ToLatin1($emisor['RazonSocialBoleta'] ?? $emisor['RazonSocial']), 0, 1, 'C');
 
         // RUT
         $this->SetFont('Arial', '', 9);
@@ -64,7 +72,7 @@ class BoletaPDF extends FPDF {
 
         // Giro
         if (isset($emisor['GiroBoleta'])) {
-            $this->Cell(0, 4, utf8_decode($emisor['GiroBoleta']), 0, 1, 'C');
+            $this->Cell(0, 4, $this->utf8ToLatin1($emisor['GiroBoleta']), 0, 1, 'C');
         }
 
         // Dirección
@@ -74,7 +82,7 @@ class BoletaPDF extends FPDF {
             if (isset($emisor['ComunaOrigen'])) {
                 $direccion .= ', ' . $emisor['ComunaOrigen'];
             }
-            $this->MultiCell(0, 3, utf8_decode($direccion), 0, 'C');
+            $this->MultiCell(0, 3, $this->utf8ToLatin1($direccion), 0, 'C');
         }
 
         $this->Ln(2);
@@ -113,7 +121,7 @@ class BoletaPDF extends FPDF {
 
         $this->SetY($y_inicio + 2);
         $this->SetFont('Arial', 'B', 10);
-        $this->Cell(0, 4, utf8_decode($nombre_doc), 0, 1, 'C');
+        $this->Cell(0, 4, $this->utf8ToLatin1($nombre_doc), 0, 1, 'C');
 
         // Folio
         $this->SetFont('Arial', 'B', 11);
@@ -143,17 +151,17 @@ class BoletaPDF extends FPDF {
         $this->Cell(0, 3, $receptor['Rut'], 0, 1, 'L');
 
         // Razón Social
-        $this->Cell(15, 3, utf8_decode('Señor(a):'), 0, 0, 'L');
-        $this->MultiCell(0, 3, utf8_decode($receptor['RazonSocial']), 0, 'L');
+        $this->Cell(15, 3, $this->utf8ToLatin1('Señor(a):'), 0, 0, 'L');
+        $this->MultiCell(0, 3, $this->utf8ToLatin1($receptor['RazonSocial']), 0, 'L');
 
         // Dirección (si existe)
         if (isset($receptor['Direccion'])) {
-            $this->Cell(15, 3, utf8_decode('Dirección:'), 0, 0, 'L');
+            $this->Cell(15, 3, $this->utf8ToLatin1('Dirección:'), 0, 0, 'L');
             $direccion = $receptor['Direccion'];
             if (isset($receptor['Comuna'])) {
                 $direccion .= ', ' . $receptor['Comuna'];
             }
-            $this->MultiCell(0, 3, utf8_decode($direccion), 0, 'L');
+            $this->MultiCell(0, 3, $this->utf8ToLatin1($direccion), 0, 'L');
         }
 
         $this->Ln(2);
@@ -171,7 +179,7 @@ class BoletaPDF extends FPDF {
 
         // Encabezado de tabla
         $this->Cell(8, 4, 'Cant', 0, 0, 'C');
-        $this->Cell(42, 4, utf8_decode('Descripción'), 0, 0, 'L');
+        $this->Cell(42, 4, $this->utf8ToLatin1('Descripción'), 0, 0, 'L');
         $this->Cell(15, 4, 'Precio', 0, 0, 'R');
         $this->Cell(15, 4, 'Total', 0, 1, 'R');
 
@@ -212,7 +220,7 @@ class BoletaPDF extends FPDF {
         $x_actual = $this->GetX();
         $y_actual = $this->GetY();
 
-        $this->MultiCell(42, 4, utf8_decode($nombre), 0, 'L');
+        $this->MultiCell(42, 4, $this->utf8ToLatin1($nombre), 0, 'L');
 
         $y_despues = $this->GetY();
         $this->SetXY($x_actual + 42, $y_actual);
@@ -232,7 +240,7 @@ class BoletaPDF extends FPDF {
         if (isset($item['Descripcion']) && !empty($item['Descripcion'])) {
             $this->SetFont('Arial', 'I', 7);
             $this->Cell(8, 3, '', 0, 0);
-            $this->MultiCell(62, 3, utf8_decode($item['Descripcion']), 0, 'L');
+            $this->MultiCell(62, 3, $this->utf8ToLatin1($item['Descripcion']), 0, 'L');
             $this->SetFont('Arial', '', 8);
         }
     }
@@ -313,7 +321,7 @@ class BoletaPDF extends FPDF {
     private function piePagina() {
         // Leyenda SII
         $this->SetFont('Arial', 'I', 6);
-        $this->MultiCell(0, 3, utf8_decode('Documento Tributario Electrónico generado de acuerdo a lo establecido por el Servicio de Impuestos Internos (SII)'), 0, 'C');
+        $this->MultiCell(0, 3, $this->utf8ToLatin1('Documento Tributario Electrónico generado de acuerdo a lo establecido por el Servicio de Impuestos Internos (SII)'), 0, 'C');
 
         $this->Ln(1);
 
