@@ -14,7 +14,7 @@ echo "=== SIMPLE DTE - SCRIPT DE PRUEBAS ===\n\n";
 define('API_KEY', '9794-N370-6392-6913-8052');
 define('CERT_PATH', __DIR__ . '/16694181-4.pfx');
 define('CERT_PASSWORD', '5605');
-define('CAF_PATH', __DIR__ . '/FoliosSII7827422539120251191419.xml');
+define('CAF_PATH', __DIR__ . '/FoliosSII78274225391889202511161321.xml');
 define('RUT_EMISOR', '78274225-6');
 define('RAZON_SOCIAL', 'AKIBARA SPA');
 define('AMBIENTE', 'certificacion'); // certificacion o produccion
@@ -49,8 +49,8 @@ echo "  - Tipo DTE: $tipo_dte (Boleta Electrónica)\n";
 echo "  - Rango de folios: $folio_desde a $folio_hasta\n";
 echo "  - Folios disponibles: " . ($folio_hasta - $folio_desde + 1) . "\n\n";
 
-// Seleccionar un folio para la prueba (usar el primero disponible)
-$folio_prueba = $folio_desde;
+// Seleccionar un folio para la prueba (usar el siguiente disponible)
+$folio_prueba = $folio_desde + 1;  // 1890 - folio 1889 ya fue usado
 echo "📝 Folio seleccionado para prueba: $folio_prueba\n\n";
 
 // Paso 2: Generar Boleta Electrónica (CASO-1)
