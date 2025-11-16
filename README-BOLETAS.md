@@ -8,9 +8,11 @@ Sistema automatizado para generar, enviar y gestionar Boletas Electrónicas (DTE
 - ✅ Envío automático al SII
 - ✅ Consulta automática de estado
 - ✅ Envío automático por email (opcional)
+- ✅ Generación de PDF estilo SII
 - ✅ Control automático de folios
 - ✅ Guardado de XMLs generados
 - ✅ Configuración flexible
+- ✅ Compatible con Hostinger
 
 ## Archivos del Sistema
 
@@ -18,6 +20,12 @@ Sistema automatizado para generar, enviar y gestionar Boletas Electrónicas (DTE
 - `ejemplo-uso-boletas.php` - Ejemplos de uso interactivos
 - `gestor-cafs.php` - Gestor de archivos CAF (cambiar entre múltiples CAFs)
 - `test-simple-dte.php` - Script de pruebas para certificación SII
+- `test-caso2-nota-credito.php` - Test Nota de Crédito (DTE 61)
+- `test-caso3-nota-debito.php` - Test Nota de Débito (DTE 56)
+- `test-caso4-factura-afecta.php` - Test Factura Afecta (DTE 33)
+- `test-caso5-factura-exenta.php` - Test Factura Exenta (DTE 34)
+- `lib/fpdf.php` - Librería FPDF para generación de PDF
+- `lib/generar-pdf-boleta.php` - Generador de PDF para boletas
 - `folios_usados.txt` - Control automático de folios usados
 
 ## Configuración
@@ -46,6 +54,8 @@ $CONFIG = [
     'guardar_xml' => true,               // Guardar XMLs generados
     'directorio_xml' => '/tmp',          // Directorio para XMLs
     'email_remitente' => 'boletas@akibara.cl',
+    'adjuntar_pdf' => true,              // true = adjuntar PDF de la boleta
+    'adjuntar_xml' => false,             // true = adjuntar XML de la boleta
 ];
 ```
 
@@ -319,6 +329,58 @@ Editar la función `enviar_email()` en `generar-boleta.php` para personalizar:
 **Para desarrollo/testing:**
 - Si MailPoet no está disponible, el sistema usa wp_mail()
 - Si WordPress no está disponible, usa mail() (sin adjuntos)
+
+## Generación de PDF
+
+El sistema incluye generación automática de PDF para boletas electrónicas usando **FPDF**.
+
+### Características del PDF
+
+- ✅ Formato tipo ticket (80mm de ancho)
+- ✅ Diseño estilo boletas SII Chile
+- ✅ Incluye todos los datos del DTE
+- ✅ Timbre electrónico
+- ✅ Sin dependencias externas
+- ✅ Compatible con Hostinger y hosting compartido
+
+### Configuración de Adjuntos
+
+```php
+$CONFIG['adjuntar_pdf'] = true;   // Adjuntar PDF al email
+$CONFIG['adjuntar_xml'] = false;  // Adjuntar XML al email
+```
+
+**Opciones disponibles:**
+1. Solo PDF: `adjuntar_pdf = true, adjuntar_xml = false` (Recomendado)
+2. Solo XML: `adjuntar_pdf = false, adjuntar_xml = true`
+3. Ambos: `adjuntar_pdf = true, adjuntar_xml = true`
+4. Ninguno: `adjuntar_pdf = false, adjuntar_xml = false` (solo email informativo)
+
+### Librería FPDF
+
+El sistema usa FPDF para generar PDFs sin necesidad de extensiones PHP especiales:
+- Ubicación: `lib/fpdf.php`
+- Generador: `lib/generar-pdf-boleta.php`
+- Licencia: Libre y gratuita
+- Requisitos: Solo PHP (5.6+)
+
+**Ventajas de FPDF:**
+- No requiere Composer
+- No requiere extensiones especiales
+- Ligero (50KB)
+- Compatible con todos los hostings
+
+### Generar PDF Manualmente
+
+```php
+require_once 'lib/generar-pdf-boleta.php';
+
+// Generar y guardar PDF
+generar_pdf_boleta($datos_boleta, $dte_xml, '/ruta/boleta.pdf');
+
+// O generar en memoria
+$pdf_string = generar_pdf_boleta($datos_boleta, $dte_xml);
+```
 
 ## Ambiente de Certificación vs Producción
 

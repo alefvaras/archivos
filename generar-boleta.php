@@ -8,6 +8,9 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Cargar generador de PDF
+require_once(__DIR__ . '/lib/generar-pdf-boleta.php');
+
 // ========================================
 // CONFIGURACIÓN
 // ========================================
@@ -32,6 +35,8 @@ $CONFIG = [
     'guardar_xml' => true,               // Guardar XMLs generados
     'directorio_xml' => '/tmp',          // Directorio para guardar XMLs
     'email_remitente' => 'boletas@akibara.cl',  // Email remitente
+    'adjuntar_pdf' => true,              // true = adjuntar PDF de la boleta
+    'adjuntar_xml' => false,             // true = adjuntar XML de la boleta
 ];
 
 // ========================================
@@ -416,10 +421,26 @@ function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
         ? $datos_boleta['Documento']['Encabezado']['Receptor']['RazonSocial']
         : 'Cliente';
 
-    // Guardar XML temporalmente para adjuntar
-    $xml_filename = "boleta_{$folio}.xml";
-    $xml_path = sys_get_temp_dir() . '/' . $xml_filename;
-    file_put_contents($xml_path, $dte_xml);
+    // Preparar adjuntos según configuración
+    $attachments = [];
+
+    // Adjuntar XML si está configurado
+    if (!empty($config['adjuntar_xml'])) {
+        $xml_filename = "boleta_{$folio}.xml";
+        $xml_path = sys_get_temp_dir() . '/' . $xml_filename;
+        file_put_contents($xml_path, $dte_xml);
+        $attachments[] = $xml_path;
+    }
+
+    // Adjuntar PDF si está configurado
+    if (!empty($config['adjuntar_pdf'])) {
+        $pdf_filename = "boleta_{$folio}.pdf";
+        $pdf_path = sys_get_temp_dir() . '/' . $pdf_filename;
+
+        // Generar PDF
+        generar_pdf_boleta($datos_boleta, $dte_xml, $pdf_path);
+        $attachments[] = $pdf_path;
+    }
 
     // Asunto
     $asunto = "Boleta Electrónica N° {$folio} - " . RAZON_SOCIAL;
@@ -501,14 +522,22 @@ function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
                 'body' => $mensaje,
                 'from_name' => RAZON_SOCIAL,
                 'from_email' => $config['email_remitente'],
-                'attachments' => [$xml_path]
+                'attachments' => $attachments
             ]);
 
             echo "  📧 Email enviado vía MailPoet a: {$destinatario}\n";
             echo "     Asunto: {$asunto}\n";
+            if (!empty($config['adjuntar_pdf'])) {
+                echo "     Adjunto: PDF\n";
+            }
+            if (!empty($config['adjuntar_xml'])) {
+                echo "     Adjunto: XML\n";
+            }
 
-            // Limpiar archivo temporal
-            @unlink($xml_path);
+            // Limpiar archivos temporales
+            foreach ($attachments as $file) {
+                @unlink($file);
+            }
             return true;
 
         } catch (Exception $e) {
@@ -524,19 +553,25 @@ function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
             'From: ' . RAZON_SOCIAL . ' <' . $config['email_remitente'] . '>'
         ];
 
-        $attachments = [$xml_path];
-
         $result = wp_mail($destinatario, $asunto, $mensaje, $headers, $attachments);
 
         if ($result) {
             echo "  📧 Email enviado vía wp_mail() a: {$destinatario}\n";
             echo "     Asunto: {$asunto}\n";
+            if (!empty($config['adjuntar_pdf'])) {
+                echo "     Adjunto: PDF\n";
+            }
+            if (!empty($config['adjuntar_xml'])) {
+                echo "     Adjunto: XML\n";
+            }
         } else {
             echo "  ❌ Error al enviar email vía wp_mail()\n";
         }
 
-        // Limpiar archivo temporal
-        @unlink($xml_path);
+        // Limpiar archivos temporales
+        foreach ($attachments as $file) {
+            @unlink($file);
+        }
         return $result;
     }
 
@@ -550,13 +585,15 @@ function enviar_email($destinatario, $dte_xml, $datos_boleta, $config) {
     if ($result) {
         echo "  📧 Email enviado vía mail() a: {$destinatario}\n";
         echo "     Asunto: {$asunto}\n";
-        echo "     ⚠️  Nota: XML no adjuntado (usar MailPoet o wp_mail para adjuntos)\n";
+        echo "     ⚠️  Nota: Adjuntos no soportados (usar MailPoet o wp_mail para adjuntos)\n";
     } else {
         echo "  ❌ Error al enviar email\n";
     }
 
-    // Limpiar archivo temporal
-    @unlink($xml_path);
+    // Limpiar archivos temporales
+    foreach ($attachments as $file) {
+        @unlink($file);
+    }
     return $result;
 }
 
