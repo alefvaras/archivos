@@ -25,6 +25,7 @@ Sistema automatizado para generar, enviar y gestionar Boletas Electrónicas (DTE
 - `ejemplo-integracion-completa.php` - Ejemplo completo con BD + Logging + PDF417
 - `migrar-a-bd.php` - Migración de datos desde archivos a base de datos
 - `gestor-cafs.php` - Gestor de archivos CAF (cambiar entre múltiples CAFs)
+- `woocommerce-boletas-electronicas.php` - Plugin WooCommerce (e-commerce)
 
 ### Tests de Certificación SII
 - `test-simple-dte.php` - Test Boleta Electrónica (DTE 39)
@@ -942,6 +943,221 @@ grep "Boleta generada" logs/dte_$(date +%Y-%m-%d).log
 # Contar errores del día
 grep -c "ERROR" logs/dte_$(date +%Y-%m-%d).log
 ```
+
+## Integración con WooCommerce (E-commerce)
+
+El sistema incluye un **plugin completo de WooCommerce** que genera boletas electrónicas automáticamente al completar órdenes de compra.
+
+### ¿Qué es WooCommerce?
+
+**WooCommerce** es el plugin de e-commerce (tienda online) más popular para WordPress. Permite vender productos/servicios por internet con carrito de compras, pasarelas de pago, gestión de inventario, etc.
+
+### Características del Plugin
+
+- ✅ **Generación automática** de boletas al completar órdenes
+- ✅ **Campo RUT en checkout** con validación de dígito verificador
+- ✅ **Envío automático por email** con PDF adjunto al cliente
+- ✅ **Descarga de PDF** desde "Mi cuenta" del cliente
+- ✅ **Metabox en admin** mostrando folio, track ID y estado SII
+- ✅ **Columna de boleta** en lista de órdenes
+- ✅ **Generación manual** desde panel de orden (si falla automática)
+- ✅ **Compatible con campo RUT existente** (detecta automáticamente)
+- ✅ **Integración completa** con logging y base de datos
+
+### Flujo Automático
+
+```
+1. Cliente compra en tu tienda WooCommerce
+   ↓
+2. Cliente ingresa RUT en checkout
+   ↓
+3. Orden se marca como "Completada"
+   ↓
+4. 🔥 Plugin genera boleta automáticamente
+   ↓
+5. Boleta se envía al SII
+   ↓
+6. Se genera PDF con Timbre PDF417
+   ↓
+7. Cliente recibe email con PDF adjunto
+   ↓
+8. Cliente puede descargar desde "Mi cuenta"
+```
+
+### Instalación del Plugin
+
+**Archivo del plugin:** `woocommerce-boletas-electronicas.php`
+
+**Requisitos:**
+- WordPress 5.8+
+- WooCommerce 6.0+
+- PHP 8.0+
+- Sistema de boletas ya configurado
+
+**Opción 1: Instalación Manual (Desarrollo)**
+
+```bash
+# El plugin debe estar en el mismo directorio que generar-boleta.php
+# Crear enlace simbólico en WordPress
+ln -s /ruta/a/tu/sistema-boletas /var/www/html/wp-content/plugins/woocommerce-boletas-electronicas
+
+# Activar desde WordPress Admin → Plugins
+```
+
+**Opción 2: Instalación como ZIP (Producción)**
+
+```bash
+# Crear archivo ZIP
+zip -r woocommerce-boletas-electronicas.zip \
+  woocommerce-boletas-electronicas.php \
+  generar-boleta.php \
+  lib/ \
+  db/ \
+  README-BOLETAS.md
+
+# Subir ZIP en WordPress Admin → Plugins → Añadir nuevo → Subir plugin
+```
+
+### Configuración del Plugin
+
+**1. En wp-config.php agregar variables de entorno:**
+
+```php
+// Base de datos (opcional pero recomendado)
+putenv('DB_NAME=boletas_electronicas');
+putenv('DB_USER=root');
+putenv('DB_PASS=tu_password');
+```
+
+**2. Verificar configuración en generar-boleta.php:**
+
+```php
+define('API_KEY', 'tu-api-key-simple-api');
+define('CERT_PATH', '/ruta/certificado.pfx');
+define('CERT_PASSWORD', 'password-certificado');
+define('CAF_PATH', '/ruta/FoliosSII.xml');
+define('RUT_EMISOR', '12345678-9');
+define('RAZON_SOCIAL', 'MI EMPRESA SPA');
+define('AMBIENTE', 'certificacion'); // o 'produccion'
+```
+
+**3. Activar plugin en WordPress Admin → Plugins**
+
+### Uso del Plugin
+
+#### Para el Cliente:
+
+1. **Checkout:**
+   - Ingresa datos personales
+   - Ingresa RUT (campo obligatorio con validación)
+   - Completa pago
+
+2. **Email:**
+   - Recibe confirmación de orden
+   - PDF de boleta electrónica adjunto
+
+3. **Mi cuenta:**
+   - Ver órdenes
+   - Descargar PDF de boleta
+
+#### Para el Administrador:
+
+1. **Ver lista de órdenes:**
+   - Columna "Boleta" muestra folio
+   - Si no tiene boleta muestra "—"
+
+2. **Ver detalles de orden:**
+   - Metabox "Boleta Electrónica SII" muestra:
+     - Folio
+     - Track ID
+     - Estado SII
+     - Fecha de generación
+     - Botón "Descargar PDF"
+
+3. **Generar manualmente:**
+   - Acciones de orden → "Generar Boleta Electrónica"
+   - Útil si generación automática falló
+
+### Datos Extraídos de WooCommerce
+
+El plugin automáticamente extrae:
+
+```php
+// Del cliente
+'rut' => campo _billing_rut (del checkout)
+'razon_social' => billing_first_name + billing_last_name
+'email' => billing_email
+'direccion' => billing_address_1
+'comuna' => billing_city
+
+// De los items
+'nombre' => nombre del producto
+'descripcion' => descripción corta del producto
+'cantidad' => cantidad del item
+'precio' => precio con IVA incluido
+
+// Costos adicionales
+'envio' => se agrega como item separado si existe
+```
+
+### Campo RUT en Checkout
+
+El plugin agrega automáticamente el campo RUT al checkout con:
+
+- **Formato:** 12345678-9 (con guión)
+- **Validación:** Dígito verificador según algoritmo oficial
+- **Obligatorio:** No puede completar compra sin RUT válido
+- **Compatible:** Si ya tienes campo `_billing_rut`, lo usa automáticamente
+
+### Troubleshooting WooCommerce
+
+**Boleta no se genera automáticamente:**
+
+```bash
+# 1. Verificar que orden esté en estado "Completada"
+# 2. Ver logs
+tail -f logs/errors_$(date +%Y-%m-%d).log | grep woocommerce
+
+# 3. Verificar configuración
+cat generar-boleta.php | grep "define("
+
+# 4. Generar manualmente desde admin de orden
+```
+
+**Error "WooCommerce no encontrado":**
+
+```bash
+# Instalar WooCommerce primero
+WordPress Admin → Plugins → Añadir nuevo → Buscar "WooCommerce"
+```
+
+**Cliente no recibe PDF por email:**
+
+```php
+// Verificar configuración de email en generar-boleta.php
+$CONFIG['envio_automatico_email'] = true;
+$CONFIG['adjuntar_pdf'] = true;
+```
+
+### Documentación Completa del Plugin
+
+Ver **PLUGIN-WOOCOMMERCE-README.md** para:
+- Instalación detallada paso a paso
+- Personalización del plugin
+- Compatibilidad con temas y plugins
+- Logs y debugging avanzado
+- Seguridad y permisos
+
+### Beneficios de la Integración
+
+| Sin Plugin | Con Plugin WooCommerce |
+|------------|------------------------|
+| Generar boleta manualmente después de cada venta | ✅ Generación automática al completar orden |
+| Copiar datos del cliente de WooCommerce | ✅ Datos extraídos automáticamente |
+| Enviar PDF manualmente por email | ✅ Email automático con PDF adjunto |
+| Cliente no tiene acceso a boleta | ✅ Cliente descarga desde "Mi cuenta" |
+| Sin trazabilidad en órdenes | ✅ Folio visible en lista de órdenes |
+| Propenso a olvidos | ✅ Cada venta = boleta garantizada |
 
 ## Ambiente de Certificación vs Producción
 
