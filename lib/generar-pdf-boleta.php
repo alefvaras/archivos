@@ -1,30 +1,42 @@
 <?php
 /**
  * Generador de PDF para Boletas Electrónicas
- * Formato oficial SII Chile
+ * Formato profesional compatible con SII Chile
+ * Inspirado en LibreDTE y mejores prácticas
  */
 
 require_once(__DIR__ . '/fpdf.php');
 require_once(__DIR__ . '/generar-timbre-pdf417.php');
 
 class BoletaPDF extends FPDF {
-    private $datos_boleta;
-    private $dte_xml;
-    private $xml; // Declarar propiedad para evitar warning PHP 8.2+
+    protected $datos_boleta;
+    protected $dte_xml;
+    protected $xml;
+
+    // Ancho de ticket 80mm
+    const ANCHO_TICKET = 80;
+    const MARGEN_IZQUIERDO = 5;
+    const MARGEN_DERECHO = 5;
+    const ANCHO_UTIL = 70; // 80 - 5 - 5
 
     public function __construct($datos_boleta, $dte_xml) {
-        parent::__construct('P', 'mm', array(80, 297)); // Tamaño ticket 80mm ancho x A4 alto
+        // Usar tamaño A4 height (297mm) que es suficiente para cualquier boleta
+        // El ancho es 80mm (ticket térmico estándar)
+        parent::__construct('P', 'mm', array(self::ANCHO_TICKET, 297));
+
+        $this->SetMargins(self::MARGEN_IZQUIERDO, 5, self::MARGEN_DERECHO);
+        $this->SetAutoPageBreak(false);
+
         $this->datos_boleta = $datos_boleta;
         $this->dte_xml = $dte_xml;
-
-        // Parse XML para obtener datos adicionales
         $this->xml = simplexml_load_string($dte_xml);
     }
 
     /**
-     * Convertir texto UTF-8 a ISO-8859-1 para FPDF (PHP 8.2+ compatible)
+     * Convertir texto UTF-8 a ISO-8859-1 para FPDF
      */
     private function utf8ToLatin1($text) {
+        if (empty($text)) return '';
         return mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
     }
 
@@ -33,27 +45,14 @@ class BoletaPDF extends FPDF {
      */
     public function generarBoleta() {
         $this->AddPage();
-        $this->SetAutoPageBreak(true, 10);
 
-        // Encabezado con datos del emisor
+        // Generar todo el contenido
         $this->encabezadoEmisor();
-
-        // Tipo de documento y folio
         $this->tipoDTE();
-
-        // Datos del receptor
         $this->datosReceptor();
-
-        // Detalles de items
         $this->detallesItems();
-
-        // Totales
         $this->totales();
-
-        // Timbraje electrónico
         $this->timbraje();
-
-        // Pie de página
         $this->piePagina();
     }
 
@@ -64,29 +63,31 @@ class BoletaPDF extends FPDF {
         $emisor = $this->datos_boleta['Documento']['Encabezado']['Emisor'];
 
         // Nombre empresa
-        $this->SetFont('Arial', 'B', 12);
-        $this->Cell(0, 5, $this->utf8ToLatin1($emisor['RazonSocialBoleta'] ?? $emisor['RazonSocial']), 0, 1, 'C');
+        $this->SetFont('Arial', 'B', 11);
+        $razon_social = $emisor['RazonSocialBoleta'] ?? $emisor['RazonSocial'] ?? 'EMPRESA';
+        $this->MultiCell(self::ANCHO_UTIL, 4, $this->utf8ToLatin1($razon_social), 0, 'C');
 
         // RUT
         $this->SetFont('Arial', '', 9);
-        $this->Cell(0, 4, 'RUT: ' . $emisor['Rut'], 0, 1, 'C');
+        $this->Cell(self::ANCHO_UTIL, 4, 'RUT: ' . ($emisor['Rut'] ?? ''), 0, 1, 'C');
 
         // Giro
-        if (isset($emisor['GiroBoleta'])) {
-            $this->Cell(0, 4, $this->utf8ToLatin1($emisor['GiroBoleta']), 0, 1, 'C');
+        if (isset($emisor['GiroBoleta']) && !empty($emisor['GiroBoleta'])) {
+            $this->SetFont('Arial', '', 8);
+            $this->MultiCell(self::ANCHO_UTIL, 3, $this->utf8ToLatin1($emisor['GiroBoleta']), 0, 'C');
         }
 
         // Dirección
-        if (isset($emisor['DireccionOrigen'])) {
-            $this->SetFont('Arial', '', 8);
+        if (isset($emisor['DireccionOrigen']) && !empty($emisor['DireccionOrigen'])) {
+            $this->SetFont('Arial', '', 7);
             $direccion = $emisor['DireccionOrigen'];
             if (isset($emisor['ComunaOrigen'])) {
                 $direccion .= ', ' . $emisor['ComunaOrigen'];
             }
-            $this->MultiCell(0, 3, $this->utf8ToLatin1($direccion), 0, 'C');
+            $this->MultiCell(self::ANCHO_UTIL, 3, $this->utf8ToLatin1($direccion), 0, 'C');
         }
 
-        $this->Ln(2);
+        $this->Ln(3);
     }
 
     /**
@@ -96,10 +97,11 @@ class BoletaPDF extends FPDF {
         $idDoc = $this->datos_boleta['Documento']['Encabezado']['IdentificacionDTE'];
 
         // Recuadro con tipo y folio
-        $this->SetLineWidth(0.5);
-        $this->Rect(10, $this->GetY(), 60, 15);
-
+        $this->SetLineWidth(0.3);
         $y_inicio = $this->GetY();
+        $this->Rect(self::MARGEN_IZQUIERDO + 5, $y_inicio, self::ANCHO_UTIL - 10, 14);
+
+        $this->SetY($y_inicio + 2);
 
         // Tipo de documento
         $tipo_doc = $idDoc['TipoDTE'];
@@ -120,18 +122,17 @@ class BoletaPDF extends FPDF {
                 break;
         }
 
-        $this->SetY($y_inicio + 2);
-        $this->SetFont('Arial', 'B', 10);
-        $this->Cell(0, 4, $this->utf8ToLatin1($nombre_doc), 0, 1, 'C');
+        $this->SetFont('Arial', 'B', 9);
+        $this->Cell(self::ANCHO_UTIL, 4, $this->utf8ToLatin1($nombre_doc), 0, 1, 'C');
 
         // Folio
-        $this->SetFont('Arial', 'B', 11);
-        $this->Cell(0, 5, $this->utf8ToLatin1('N° ') . $idDoc['Folio'], 0, 1, 'C');
+        $this->SetFont('Arial', 'B', 12);
+        $this->Cell(self::ANCHO_UTIL, 5, $this->utf8ToLatin1('N° ') . $idDoc['Folio'], 0, 1, 'C');
 
         // Fecha
         $this->SetFont('Arial', '', 8);
         $fecha = date('d/m/Y', strtotime($idDoc['FechaEmision']));
-        $this->Cell(0, 3, $fecha, 0, 1, 'C');
+        $this->Cell(self::ANCHO_UTIL, 3, $fecha, 0, 1, 'C');
 
         $this->Ln(3);
     }
@@ -142,33 +143,36 @@ class BoletaPDF extends FPDF {
     private function datosReceptor() {
         $receptor = $this->datos_boleta['Documento']['Encabezado']['Receptor'];
 
-        $this->SetFont('Arial', 'B', 9);
-        $this->Cell(0, 4, 'DATOS DEL CLIENTE', 0, 1, 'L');
+        $this->SetFont('Arial', 'B', 8);
+        $this->Cell(self::ANCHO_UTIL, 4, 'DATOS DEL CLIENTE', 0, 1, 'L');
+
+        $this->Ln(1);
 
         $this->SetFont('Arial', '', 8);
 
         // RUT
-        $this->Cell(15, 3, 'RUT:', 0, 0, 'L');
-        $this->Cell(0, 3, $receptor['Rut'], 0, 1, 'L');
+        $this->Cell(18, 3, 'RUT:', 0, 0, 'L');
+        $this->Cell(0, 3, $receptor['Rut'] ?? '', 0, 1, 'L');
 
         // Razón Social
-        $this->Cell(15, 3, $this->utf8ToLatin1('Señor(a):'), 0, 0, 'L');
-        $this->MultiCell(0, 3, $this->utf8ToLatin1($receptor['RazonSocial']), 0, 'L');
+        $this->Cell(18, 3, $this->utf8ToLatin1('Señor(a):'), 0, 0, 'L');
+        $this->MultiCell(self::ANCHO_UTIL - 18, 3, $this->utf8ToLatin1($receptor['RazonSocial'] ?? 'Cliente'), 0, 'L');
 
         // Dirección (si existe)
-        if (isset($receptor['Direccion'])) {
-            $this->Cell(15, 3, $this->utf8ToLatin1('Dirección:'), 0, 0, 'L');
+        if (isset($receptor['Direccion']) && !empty($receptor['Direccion'])) {
+            $this->Cell(18, 3, $this->utf8ToLatin1('Dirección:'), 0, 0, 'L');
             $direccion = $receptor['Direccion'];
-            if (isset($receptor['Comuna'])) {
+            if (isset($receptor['Comuna']) && !empty($receptor['Comuna'])) {
                 $direccion .= ', ' . $receptor['Comuna'];
             }
-            $this->MultiCell(0, 3, $this->utf8ToLatin1($direccion), 0, 'L');
+            $this->MultiCell(self::ANCHO_UTIL - 18, 3, $this->utf8ToLatin1($direccion), 0, 'L');
         }
 
         $this->Ln(2);
 
         // Línea separadora
-        $this->Line(5, $this->GetY(), 75, $this->GetY());
+        $this->SetLineWidth(0.1);
+        $this->Line(self::MARGEN_IZQUIERDO, $this->GetY(), self::ANCHO_TICKET - self::MARGEN_DERECHO, $this->GetY());
         $this->Ln(2);
     }
 
@@ -176,19 +180,20 @@ class BoletaPDF extends FPDF {
      * Detalles de items
      */
     private function detallesItems() {
-        $this->SetFont('Arial', 'B', 8);
+        $this->SetFont('Arial', 'B', 7);
 
         // Encabezado de tabla
-        $this->Cell(8, 4, 'Cant', 0, 0, 'C');
-        $this->Cell(42, 4, $this->utf8ToLatin1('Descripción'), 0, 0, 'L');
-        $this->Cell(15, 4, 'Precio', 0, 0, 'R');
-        $this->Cell(15, 4, 'Total', 0, 1, 'R');
+        $this->Cell(7, 3, 'Cant', 0, 0, 'C');
+        $this->Cell(38, 3, $this->utf8ToLatin1('Descripción'), 0, 0, 'L');
+        $this->Cell(12, 3, 'Precio', 0, 0, 'R');
+        $this->Cell(13, 3, 'Total', 0, 1, 'R');
 
         // Línea
-        $this->Line(5, $this->GetY(), 75, $this->GetY());
+        $this->SetLineWidth(0.1);
+        $this->Line(self::MARGEN_IZQUIERDO, $this->GetY(), self::ANCHO_TICKET - self::MARGEN_DERECHO, $this->GetY());
         $this->Ln(1);
 
-        $this->SetFont('Arial', '', 8);
+        $this->SetFont('Arial', '', 7);
 
         // Items
         $detalles = $this->datos_boleta['Documento']['Detalles'];
@@ -209,40 +214,43 @@ class BoletaPDF extends FPDF {
      * Imprimir un item
      */
     private function imprimirItem($item) {
-        $nombre = isset($item['Nombre']) ? $item['Nombre'] : $item['NmbItem'];
-        $cantidad = $item['Cantidad'];
-        $precio = $item['Precio'];
-        $monto = $item['MontoItem'];
+        $nombre = $item['Nombre'] ?? $item['NmbItem'] ?? 'Item';
+        $cantidad = $item['Cantidad'] ?? 1;
+        $precio = $item['Precio'] ?? 0;
+        $monto = $item['MontoItem'] ?? 0;
+
+        $y_inicio = $this->GetY();
 
         // Cantidad
-        $this->Cell(8, 4, $cantidad, 0, 0, 'C');
+        $this->Cell(7, 3, $cantidad, 0, 0, 'C');
 
         // Descripción (puede ser multilínea)
-        $x_actual = $this->GetX();
-        $y_actual = $this->GetY();
+        $x_desc = $this->GetX();
+        $y_desc = $this->GetY();
 
-        $this->MultiCell(42, 4, $this->utf8ToLatin1($nombre), 0, 'L');
+        $this->MultiCell(38, 3, $this->utf8ToLatin1($nombre), 0, 'L');
 
-        $y_despues = $this->GetY();
-        $this->SetXY($x_actual + 42, $y_actual);
+        $y_final = $this->GetY();
+        $altura_desc = $y_final - $y_desc;
+
+        // Volver para imprimir precio y total
+        $this->SetXY($x_desc + 38, $y_desc);
 
         // Precio unitario
-        $this->Cell(15, 4, '$' . number_format($precio, 0, ',', '.'), 0, 0, 'R');
+        $this->Cell(12, 3, '$' . number_format($precio, 0, ',', '.'), 0, 0, 'R');
 
         // Total
-        $this->Cell(15, 4, '$' . number_format($monto, 0, ',', '.'), 0, 1, 'R');
+        $this->Cell(13, 3, '$' . number_format($monto, 0, ',', '.'), 0, 0, 'R');
 
-        // Ajustar Y si la descripción ocupó más líneas
-        if ($y_despues > $this->GetY()) {
-            $this->SetY($y_despues);
-        }
+        // Mover Y al final de la descripción si fue multilínea
+        $this->SetY(max($y_desc + 3, $y_final));
 
         // Descripción adicional (si existe)
         if (isset($item['Descripcion']) && !empty($item['Descripcion'])) {
-            $this->SetFont('Arial', 'I', 7);
-            $this->Cell(8, 3, '', 0, 0);
-            $this->MultiCell(62, 3, $this->utf8ToLatin1($item['Descripcion']), 0, 'L');
-            $this->SetFont('Arial', '', 8);
+            $this->SetFont('Arial', 'I', 6);
+            $this->Cell(7, 2, '', 0, 0);
+            $this->MultiCell(63, 2, $this->utf8ToLatin1($item['Descripcion']), 0, 'L');
+            $this->SetFont('Arial', '', 7);
         }
     }
 
@@ -253,35 +261,36 @@ class BoletaPDF extends FPDF {
         $totales = $this->datos_boleta['Documento']['Encabezado']['Totales'];
 
         // Línea separadora
-        $this->Line(5, $this->GetY(), 75, $this->GetY());
+        $this->SetLineWidth(0.1);
+        $this->Line(self::MARGEN_IZQUIERDO, $this->GetY(), self::ANCHO_TICKET - self::MARGEN_DERECHO, $this->GetY());
         $this->Ln(2);
 
-        $this->SetFont('Arial', '', 9);
+        $this->SetFont('Arial', '', 8);
 
         // Monto neto (si existe)
-        if (isset($totales['MontoNeto'])) {
+        if (isset($totales['MontoNeto']) && $totales['MontoNeto'] > 0) {
             $this->Cell(50, 4, 'NETO:', 0, 0, 'R');
             $this->Cell(20, 4, '$' . number_format($totales['MontoNeto'], 0, ',', '.'), 0, 1, 'R');
         }
 
         // IVA (si existe)
-        if (isset($totales['IVA'])) {
+        if (isset($totales['IVA']) && $totales['IVA'] > 0) {
             $this->Cell(50, 4, 'IVA (19%):', 0, 0, 'R');
             $this->Cell(20, 4, '$' . number_format($totales['IVA'], 0, ',', '.'), 0, 1, 'R');
         }
 
         // Monto exento (si existe)
-        if (isset($totales['MontoExento'])) {
+        if (isset($totales['MontoExento']) && $totales['MontoExento'] > 0) {
             $this->Cell(50, 4, 'EXENTO:', 0, 0, 'R');
             $this->Cell(20, 4, '$' . number_format($totales['MontoExento'], 0, ',', '.'), 0, 1, 'R');
         }
 
         // Total
-        $this->SetFont('Arial', 'B', 11);
-        $this->Cell(50, 6, 'TOTAL:', 0, 0, 'R');
-        $this->Cell(20, 6, '$' . number_format($totales['MontoTotal'], 0, ',', '.'), 0, 1, 'R');
+        $this->SetFont('Arial', 'B', 10);
+        $this->Cell(50, 5, 'TOTAL:', 0, 0, 'R');
+        $this->Cell(20, 5, '$' . number_format($totales['MontoTotal'], 0, ',', '.'), 0, 1, 'R');
 
-        $this->Ln(2);
+        $this->Ln(3);
     }
 
     /**
@@ -289,24 +298,23 @@ class BoletaPDF extends FPDF {
      */
     private function timbraje() {
         // Línea separadora
-        $this->Line(5, $this->GetY(), 75, $this->GetY());
+        $this->SetLineWidth(0.1);
+        $this->Line(self::MARGEN_IZQUIERDO, $this->GetY(), self::ANCHO_TICKET - self::MARGEN_DERECHO, $this->GetY());
         $this->Ln(2);
 
-        $this->SetFont('Arial', '', 7);
-
-        // Título del timbre electrónico SII
-        $this->Cell(0, 3, 'TIMBRE ELECTRONICO SII', 0, 1, 'C');
-        $this->Ln(1);
+        $this->SetFont('Arial', 'B', 7);
+        $this->Cell(self::ANCHO_UTIL, 3, 'TIMBRE ELECTRÓNICO SII', 0, 1, 'C');
+        $this->Ln(2);
 
         // Generar código PDF417 del timbre
         try {
-            // Generar imagen PDF417 en memoria
+            // Generar imagen PDF417
             $imagen_pdf417 = generar_timbre_pdf417($this->dte_xml, null, [
-                'columns' => 12,           // Reducido para ticket 80mm
-                'security_level' => 5,     // Nivel 5 requerido por SII
-                'scale' => 1,              // Escala pequeña para ticket
-                'ratio' => 2,              // Ratio ajustado
-                'padding' => 2,            // Padding mínimo
+                'columns' => 10,
+                'security_level' => 5,
+                'scale' => 1,
+                'ratio' => 2,
+                'padding' => 1,
             ]);
 
             if ($imagen_pdf417) {
@@ -314,17 +322,17 @@ class BoletaPDF extends FPDF {
                 $temp_file = sys_get_temp_dir() . '/timbre_' . uniqid() . '.png';
                 file_put_contents($temp_file, $imagen_pdf417);
 
-                // Obtener dimensiones de la imagen
+                // Obtener dimensiones
                 $img_info = getimagesize($temp_file);
                 $img_width_px = $img_info[0];
                 $img_height_px = $img_info[1];
 
-                // Convertir a mm (asumiendo 96 DPI)
+                // Convertir a mm (96 DPI)
                 $img_width_mm = ($img_width_px * 25.4) / 96;
                 $img_height_mm = ($img_height_px * 25.4) / 96;
 
-                // Ajustar al ancho del ticket (máximo 70mm para dejar márgenes)
-                $max_width = 70;
+                // Ajustar al ancho disponible (máximo 65mm)
+                $max_width = 65;
                 if ($img_width_mm > $max_width) {
                     $ratio = $max_width / $img_width_mm;
                     $img_width_mm = $max_width;
@@ -332,87 +340,117 @@ class BoletaPDF extends FPDF {
                 }
 
                 // Centrar horizontalmente
-                $x = (80 - $img_width_mm) / 2;
+                $x = (self::ANCHO_TICKET - $img_width_mm) / 2;
 
-                // Agregar imagen al PDF
+                // Agregar imagen
                 $this->Image($temp_file, $x, $this->GetY(), $img_width_mm, $img_height_mm, 'PNG');
+                $this->SetY($this->GetY() + $img_height_mm + 2);
 
-                // Mover Y después de la imagen
-                $this->SetY($this->GetY() + $img_height_mm);
-
-                // Eliminar archivo temporal
+                // Eliminar temporal
                 @unlink($temp_file);
-
-                $this->Ln(2);
             } else {
-                // Si falla, mostrar información básica del timbre
                 $this->mostrarInfoTimbreBasica();
             }
         } catch (Exception $e) {
             error_log("Error generando PDF417: " . $e->getMessage());
-            // Mostrar información básica si falla el PDF417
             $this->mostrarInfoTimbreBasica();
         }
+
+        $this->Ln(2);
     }
 
     /**
-     * Mostrar información básica del timbre (fallback si PDF417 falla)
+     * Mostrar información básica del timbre (fallback)
      */
     private function mostrarInfoTimbreBasica() {
-        $this->SetFont('Arial', '', 7);
+        $this->SetFont('Arial', '', 6);
 
-        // Folio
-        $folio = (string) $this->xml->Documento->Encabezado->IdDoc->Folio;
-        $this->Cell(0, 3, 'Folio: ' . $folio, 0, 1, 'C');
+        if ($this->xml && $this->xml->Documento) {
+            $folio = (string) $this->xml->Documento->Encabezado->IdDoc->Folio;
+            $this->Cell(self::ANCHO_UTIL, 3, 'Folio: ' . $folio, 0, 1, 'C');
 
-        // Fecha de emisión
-        $fecha_emision = (string) $this->xml->Documento->Encabezado->IdDoc->FchEmis;
-        $this->Cell(0, 3, 'Fecha: ' . date('d/m/Y', strtotime($fecha_emision)), 0, 1, 'C');
+            $fecha_emision = (string) $this->xml->Documento->Encabezado->IdDoc->FchEmis;
+            $this->Cell(self::ANCHO_UTIL, 3, 'Fecha: ' . date('d/m/Y', strtotime($fecha_emision)), 0, 1, 'C');
 
-        // RUT emisor
-        $rut_emisor = (string) $this->xml->Documento->Encabezado->Emisor->RUTEmisor;
-        $this->Cell(0, 3, 'RUT: ' . $rut_emisor, 0, 1, 'C');
+            $rut_emisor = (string) $this->xml->Documento->Encabezado->Emisor->RUTEmisor;
+            $this->Cell(self::ANCHO_UTIL, 3, 'RUT: ' . $rut_emisor, 0, 1, 'C');
 
-        // Total
-        $total = (string) $this->xml->Documento->Encabezado->Totales->MntTotal;
-        $this->Cell(0, 3, 'Monto: $' . number_format($total, 0, ',', '.'), 0, 1, 'C');
-
-        $this->Ln(2);
+            $total = (int) $this->xml->Documento->Encabezado->Totales->MntTotal;
+            $this->Cell(self::ANCHO_UTIL, 3, 'Monto: $' . number_format($total, 0, ',', '.'), 0, 1, 'C');
+        } else {
+            $this->Cell(self::ANCHO_UTIL, 3, 'Timbre Electrónico', 0, 1, 'C');
+        }
     }
 
     /**
      * Pie de página
      */
     private function piePagina() {
+        // Línea separadora
+        $this->SetLineWidth(0.1);
+        $this->Line(self::MARGEN_IZQUIERDO, $this->GetY(), self::ANCHO_TICKET - self::MARGEN_DERECHO, $this->GetY());
+        $this->Ln(2);
+
         // Leyenda SII
-        $this->SetFont('Arial', 'I', 6);
-        $this->MultiCell(0, 3, $this->utf8ToLatin1('Documento Tributario Electrónico generado de acuerdo a lo establecido por el Servicio de Impuestos Internos (SII)'), 0, 'C');
+        $this->SetFont('Arial', '', 6);
+        $this->MultiCell(self::ANCHO_UTIL, 2.5, $this->utf8ToLatin1('Documento Tributario Electrónico generado de acuerdo a lo establecido por el Servicio de Impuestos Internos (SII)'), 0, 'C');
 
         $this->Ln(1);
 
-        // URL verificación (si corresponde)
+        // URL verificación
         $this->SetFont('Arial', '', 6);
-        $this->Cell(0, 3, 'www.sii.cl', 0, 1, 'C');
+        $this->Cell(self::ANCHO_UTIL, 2, 'www.sii.cl', 0, 1, 'C');
+
+        $this->Ln(2);
     }
 }
 
 /**
- * Función principal para generar PDF de boleta
+ * Función principal para generar PDF de boleta con tamaño dinámico
  */
 function generar_pdf_boleta($datos_boleta, $dte_xml, $output_path = null) {
     try {
-        $pdf = new BoletaPDF($datos_boleta, $dte_xml);
-        $pdf->generarBoleta();
+        // PRIMERA PASADA: Calcular altura necesaria
+        $pdf_temp = new BoletaPDF($datos_boleta, $dte_xml);
+        $pdf_temp->generarBoleta();
+        $altura_necesaria = $pdf_temp->GetY() + 10; // +10mm margen inferior
+
+        // Limitar altura a valores razonables
+        $altura_necesaria = max(100, min($altura_necesaria, 400));
+
+        // SEGUNDA PASADA: Crear PDF final con altura exacta
+        $pdf_final = new BoletaPDFFinal($datos_boleta, $dte_xml, $altura_necesaria);
+        $pdf_final->generarBoleta();
 
         if ($output_path) {
-            $pdf->Output('F', $output_path);
+            $pdf_final->Output('F', $output_path);
             return $output_path;
         } else {
-            // Generar en memoria
-            return $pdf->Output('S');
+            return $pdf_final->Output('S');
         }
     } catch (Exception $e) {
         error_log("Error generando PDF: " . $e->getMessage());
         return false;
+    }
+}
+
+/**
+ * Clase para PDF final con altura ajustada
+ */
+class BoletaPDFFinal extends BoletaPDF {
+    private $altura_custom;
+
+    public function __construct($datos_boleta, $dte_xml, $altura) {
+        $this->altura_custom = $altura;
+
+        // Crear con altura personalizada
+        FPDF::__construct('P', 'mm', array(BoletaPDF::ANCHO_TICKET, $altura));
+
+        $this->SetMargins(BoletaPDF::MARGEN_IZQUIERDO, 5, BoletaPDF::MARGEN_DERECHO);
+        $this->SetAutoPageBreak(false);
+
+        $this->datos_boleta = $datos_boleta;
+        $this->dte_xml = $dte_xml;
+        $this->xml = simplexml_load_string($dte_xml);
     }
 }
