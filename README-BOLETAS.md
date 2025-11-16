@@ -22,6 +22,8 @@ Sistema automatizado para generar, enviar y gestionar Boletas Electrónicas (DTE
 ### Scripts Principales
 - `generar-boleta.php` - Script principal del sistema
 - `ejemplo-uso-boletas.php` - Ejemplos de uso interactivos
+- `ejemplo-integracion-completa.php` - Ejemplo completo con BD + Logging + PDF417
+- `migrar-a-bd.php` - Migración de datos desde archivos a base de datos
 - `gestor-cafs.php` - Gestor de archivos CAF (cambiar entre múltiples CAFs)
 
 ### Tests de Certificación SII
@@ -170,6 +172,169 @@ require_once 'lib/BoletaRepository.php';
 $repo = new BoletaRepository();
 $folio_info = $repo->obtenerProximoFolio(39); // Tipo DTE 39 = Boleta
 ```
+
+## Migración y Ejemplo de Integración Completa
+
+### Migración de Datos a Base de Datos
+
+Si ya tienes datos en archivos (CAFs, folios_usados.txt, XMLs) y quieres migrarlos a la base de datos:
+
+```bash
+php migrar-a-bd.php
+```
+
+**El script migra automáticamente:**
+1. ✅ **Archivos CAF** → tabla `cafs`
+   - Detecta archivos `.xml` que contengan `FoliosSII`
+   - Extrae rangos de folios y fechas de autorización
+   - Verifica duplicados antes de insertar
+
+2. ✅ **folios_usados.txt** → tabla `folios_usados`
+   - Migra todos los folios desde el inicio del CAF hasta el último usado
+   - Crea respaldo automático: `folios_usados.txt.backup.YYYYMMDD_HHMMSS`
+   - Mantiene el archivo original intacto
+
+3. ✅ **XMLs generados** → tabla `boletas` (opcional, interactivo)
+   - Busca archivos `boleta_*.xml` en `/tmp`
+   - Extrae datos completos del DTE
+   - Pregunta confirmación antes de migrar
+
+**Requisitos previos:**
+- Base de datos instalada (`php db/setup.php`)
+- Variables de entorno configuradas
+
+**Salida esperada:**
+```
+=== MIGRACIÓN A BASE DE DATOS ===
+
+📋 Verificando requisitos...
+  ✓ Variables de entorno configuradas
+  ✓ Conexión a base de datos exitosa
+
+📦 Paso 1: Migrando archivos CAF...
+  Procesando: FoliosSII78274225391889202511161321.xml
+    ✓ Migrado: DTE 39, Folios 1889-2088 (ID: 1)
+
+  Resumen:
+    Migrados: 1
+    Saltados: 0
+
+🔢 Paso 2: Migrando folios usados...
+  Último folio en archivo: 1890
+  CAF encontrado: Folios 1889-2088
+  Migrando folios 1889 a 1890...
+  ✓ Folios migrados: 2
+  ✓ Backup creado: folios_usados.txt.backup.20251116_213045
+
+📄 Paso 3: Buscando XMLs de boletas...
+  Encontrados: 5 archivos XML
+  ¿Deseas migrar estos XMLs a la BD? (s/n): s
+    ✓ Migrado: Folio 1889 (ID: 1)
+    ✓ Migrado: Folio 1890 (ID: 2)
+  ✓ XMLs migrados: 2
+
+🔍 Paso 4: Verificando migración...
+  Registros en base de datos:
+    CAFs: 1
+    Folios usados: 2
+    Boletas: 2
+    Clientes: 1
+
+  Folios disponibles por CAF:
+    Boleta Electrónica: 198 disponibles de 200
+
+=== MIGRACIÓN COMPLETADA ===
+```
+
+**Importante:**
+- Los archivos originales **NO se eliminan**, solo se crea backup
+- Puedes seguir usando modo archivo si prefieres
+- La migración es **idempotente** (puedes ejecutarla múltiples veces)
+
+### Ejemplo de Integración Completa
+
+Para ver cómo funciona el sistema completo con **todas las características integradas**:
+
+```bash
+php ejemplo-integracion-completa.php
+```
+
+**Este script demuestra:**
+1. ✅ Auto-detección de base de datos (usa BD si está disponible, sino modo archivo)
+2. ✅ Inicialización del sistema de logging estructurado
+3. ✅ Obtención de folios desde BD o archivo (con fallback)
+4. ✅ Generación de boleta con Simple API
+5. ✅ Guardado en base de datos (si está disponible)
+6. ✅ Envío al SII y consulta de estado
+7. ✅ Generación de PDF con Timbre PDF417
+8. ✅ Envío por email (si está configurado)
+9. ✅ Estadísticas y reportes
+
+**Salida esperada (con BD):**
+```
+=== EJEMPLO DE INTEGRACIÓN COMPLETA ===
+
+Paso 1: Configuración
+  ✓ Modo: Base de Datos
+  ✓ Logging: Habilitado
+
+Paso 2: Inicialización de componentes
+  ✓ Logger inicializado: logs/dte_2025-11-16.log
+  ✓ Repositorio BD inicializado
+
+Paso 3: Obtener próximo folio
+  ✓ Folio obtenido desde BD: 1891
+  ℹ️  CAF: Folios 1889-2088 (197 restantes)
+
+Paso 4: Generar boleta
+  ✓ Boleta generada: Folio 1891
+  ✓ Total: $29,800
+
+Paso 5: Guardar en base de datos
+  ✓ Boleta guardada: ID 3
+
+Paso 6: Enviar al SII
+  ✓ Enviado al SII: Track ID 25790877
+
+Paso 7: Consultar estado SII
+  ✓ Estado: EPR (Envío Procesado)
+  ✓ Aceptados: 1
+
+Paso 8: Generar PDF con Timbre PDF417
+  ✓ PDF generado: /tmp/boleta_1891.pdf (8,939 bytes)
+  ✓ Incluye código PDF417
+
+Paso 9: Estadísticas
+  📊 Resumen del día:
+     Boletas: 3
+     Total facturado: $89,400
+     Estado SII: 3 aceptadas
+
+✅ INTEGRACIÓN COMPLETA EXITOSA
+```
+
+**Salida esperada (sin BD, modo archivo):**
+```
+=== EJEMPLO DE INTEGRACIÓN COMPLETA ===
+
+Paso 1: Configuración
+  ⚠️  Modo: Archivo (BD no disponible)
+  ✓ Logging: Habilitado (solo archivos)
+
+Paso 3: Obtener próximo folio
+  ✓ Folio obtenido desde archivo: 1892
+  ℹ️  CAF: Folios 1889-2088 (196 restantes)
+
+Paso 4: Generar boleta
+  ✓ Boleta generada: Folio 1892
+  ...
+```
+
+**Beneficios del script de ejemplo:**
+- Ver todas las capacidades del sistema en acción
+- Entender el flujo completo de una boleta
+- Base para tu propia implementación
+- Debugging de configuración
 
 ## Configuración
 
