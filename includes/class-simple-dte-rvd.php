@@ -231,7 +231,7 @@ class Simple_DTE_RVD {
         $xml .= '<Caratula>' . "\n";
         $xml .= '<RutEmisor>' . esc_html($rut_emisor) . '</RutEmisor>' . "\n";
         $xml .= '<RutEnvia>' . esc_html($rut_emisor) . '</RutEnvia>' . "\n";
-        $xml .= '<FchResol>2014-08-22</FchResol>' . "\n";
+        $xml .= '<FchResol>2025-11-16</FchResol>' . "\n";
         $xml .= '<NroResol>0</NroResol>' . "\n";
         $xml .= '<FchInicio>' . $fecha . '</FchInicio>' . "\n";
         $xml .= '<FchFinal>' . $fecha . '</FchFinal>' . "\n";

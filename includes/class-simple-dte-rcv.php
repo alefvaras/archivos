@@ -130,7 +130,7 @@ class Simple_DTE_RCV {
         $xml .= '<RutEmisorLibro>' . esc_html($rut_emisor) . '</RutEmisorLibro>' . "\n";
         $xml .= '<RutEnvia>' . esc_html($rut_emisor) . '</RutEnvia>' . "\n";
         $xml .= '<PeriodoTributario>' . date('Y-m', strtotime($fecha_desde)) . '</PeriodoTributario>' . "\n";
-        $xml .= '<FchResol>2014-08-22</FchResol>' . "\n";
+        $xml .= '<FchResol>2025-11-16</FchResol>' . "\n";
         $xml .= '<NroResol>0</NroResol>' . "\n";
         $xml .= '<TipoOperacion>VENTA</TipoOperacion>' . "\n";
         $xml .= '<TipoLibro>ESPECIAL</TipoLibro>' . "\n";

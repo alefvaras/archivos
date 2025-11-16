@@ -86,7 +86,7 @@ class Simple_DTE_Sobre_Generator {
      * Construir XML EnvioBoleta
      */
     private static function build_envio_boleta_xml($dtes_xml, $rut_emisor, $razon_social, $opciones) {
-        $fecha_resolucion = isset($opciones['fecha_resolucion']) ? $opciones['fecha_resolucion'] : '2014-08-22';
+        $fecha_resolucion = isset($opciones['fecha_resolucion']) ? $opciones['fecha_resolucion'] : '2025-11-16';
         $nro_resolucion = isset($opciones['nro_resolucion']) ? $opciones['nro_resolucion'] : '0';
 
         $xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n";
@@ -124,7 +124,7 @@ class Simple_DTE_Sobre_Generator {
      * Construir XML EnvioDTE
      */
     private static function build_envio_dte_xml($dtes_xml, $rut_emisor, $razon_social, $opciones) {
-        $fecha_resolucion = isset($opciones['fecha_resolucion']) ? $opciones['fecha_resolucion'] : '2014-08-22';
+        $fecha_resolucion = isset($opciones['fecha_resolucion']) ? $opciones['fecha_resolucion'] : '2025-11-16';
         $nro_resolucion = isset($opciones['nro_resolucion']) ? $opciones['nro_resolucion'] : '0';
 
         $xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n";
