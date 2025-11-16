@@ -1,0 +1,82 @@
+/* Simple DTE Admin Styles */
+
+.simple-dte-metabox .dte-info {
+    background: #f0f0f1;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.simple-dte-metabox .dte-info p {
+    margin: 5px 0;
+}
+
+.simple-dte-messages {
+    margin-top: 10px;
+}
+
+.simple-dte-messages .notice {
+    padding: 8px;
+    margin: 5px 0;
+    border-left: 4px solid;
+}
+
+.simple-dte-messages .notice-success {
+    background: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+}
+
+.simple-dte-messages .notice-error {
+    background: #f8d7da;
+    border-color: #dc3545;
+    color: #721c24;
+}
+
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-certificacion {
+    background: #f0b849;
+    color: #fff;
+}
+
+.badge-produccion {
+    background: #28a745;
+    color: #fff;
+}
+
+.card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.progress-bar {
+    width: 100px;
+    height: 20px;
+    background: #f0f0f1;
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2271b1, #72aee6);
+    transition: width 0.3s;
+}
+
+.simple-dte-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
