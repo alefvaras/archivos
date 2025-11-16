@@ -104,6 +104,9 @@ class Simple_DTE_Plugin {
         // RCV
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-rcv.php';
 
+        // RVD (Registro Ventas Diarias)
+        require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-rvd.php';
+
         // Admin
         require_once SIMPLE_DTE_PATH . 'includes/admin/class-simple-dte-admin.php';
         require_once SIMPLE_DTE_PATH . 'includes/admin/class-simple-dte-settings.php';
@@ -134,6 +137,9 @@ class Simple_DTE_Plugin {
 
         // Inicializar RCV
         Simple_DTE_RCV::init();
+
+        // Inicializar RVD
+        Simple_DTE_RVD::init();
 
         // Log de inicialización
         Simple_DTE_Logger::info('Simple DTE Plugin inicializado correctamente');
@@ -187,6 +193,7 @@ class Simple_DTE_Plugin {
         add_option('simple_dte_ambiente', 'certificacion');
         add_option('simple_dte_api_key', '');
         add_option('simple_dte_debug', true);
+        add_option('simple_dte_rvd_auto', false); // RVD automático desactivado por defecto
 
         // Datos del emisor
         add_option('simple_dte_rut_emisor', '');

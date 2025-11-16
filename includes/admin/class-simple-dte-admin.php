@@ -61,6 +61,18 @@ class Simple_DTE_Admin {
             'simple-dte-rcv',
             array(__CLASS__, 'render_rcv_page')
         );
+
+        // RVD solo en certificación
+        if (Simple_DTE_Helpers::is_certificacion()) {
+            add_submenu_page(
+                'woocommerce',
+                __('RVD - Ventas Diarias', 'simple-dte'),
+                __('RVD Diario', 'simple-dte'),
+                'manage_woocommerce',
+                'simple-dte-rvd',
+                array(__CLASS__, 'render_rvd_page')
+            );
+        }
     }
 
     /**
@@ -120,6 +132,14 @@ class Simple_DTE_Admin {
      */
     public static function render_rcv_page() {
         include SIMPLE_DTE_PATH . 'templates/admin-rcv.php';
+    }
+
+    /**
+     * Renderizar página de RVD
+     */
+    public static function render_rvd_page() {
+        $historial = Simple_DTE_RVD::get_historial_envios();
+        include SIMPLE_DTE_PATH . 'templates/admin-rvd.php';
     }
 
     /**

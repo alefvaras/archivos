@@ -32,6 +32,13 @@ Plugin completo de integración con Simple API para emisión de Boletas Electró
 - Exportación en formato XML
 - Filtrado por rango de fechas
 
+✅ **RVD (Registro de Ventas Diarias)**
+- Solo disponible en ambiente de certificación
+- Generación diaria de consumo de folios
+- Envío automático programado (23:00 hrs)
+- Historial de envíos con Track IDs
+- Exportación XML en formato ConsumoFolios
+
 ✅ **Gestión de Folios**
 - Carga de archivos CAF (XML)
 - Control de folios disponibles/usados
@@ -196,6 +203,30 @@ Para certificación, usar los casos de prueba:
 4. Clic en "Generar RCV"
 5. Se descargará archivo XML automáticamente
 
+### RVD - Registro de Ventas Diarias (Solo Certificación)
+
+El RVD es un reporte diario obligatorio que debe enviarse al SII con las boletas emitidas en el día.
+
+**IMPORTANTE**: Solo disponible en ambiente de Certificación/Pruebas
+
+#### Generar y Enviar RVD Manual:
+
+1. Ir a WooCommerce > RVD Diario
+2. Seleccionar fecha (generalmente el día anterior)
+3. Clic en "Generar RVD"
+4. Revisar el XML generado y cantidad de boletas
+5. Clic en "Enviar RVD al SII"
+6. Verificar Track ID del envío
+
+#### Configurar Envío Automático:
+
+1. En la misma página RVD
+2. Activar "Enviar RVD automáticamente todos los días a las 23:00"
+3. Guardar configuración
+4. El sistema enviará automáticamente el RVD del día anterior cada noche
+
+**Nota**: El RVD incluye todas las boletas electrónicas (tipos 39 y 41) emitidas en el día seleccionado.
+
 ## 📁 Estructura del Plugin
 
 ```
@@ -210,6 +241,7 @@ simple-dte-plugin/
 │   ├── class-simple-dte-sobre-generator.php
 │   ├── class-simple-dte-consultas.php
 │   ├── class-simple-dte-rcv.php
+│   ├── class-simple-dte-rvd.php
 │   └── admin/
 │       ├── class-simple-dte-admin.php
 │       ├── class-simple-dte-settings.php
@@ -217,7 +249,8 @@ simple-dte-plugin/
 ├── templates/
 │   ├── admin-main.php
 │   ├── admin-consultas.php
-│   └── admin-rcv.php
+│   ├── admin-rcv.php
+│   └── admin-rvd.php
 ├── assets/
 │   ├── css/
 │   │   └── admin.css
@@ -382,6 +415,8 @@ GPL v2 or later
 - [ ] Verificar estados de envío
 - [ ] Generar RCV del periodo
 - [ ] Enviar RCV al SII
+- [ ] Generar y enviar RVD diario
+- [ ] Configurar envío automático de RVD
 
 ## 🎉 ¡Listo!
 
