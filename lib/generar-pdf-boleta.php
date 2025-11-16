@@ -303,7 +303,7 @@ class BoletaPDF extends FPDF {
         $this->Ln(2);
 
         $this->SetFont('Arial', 'B', 7);
-        $this->Cell(self::ANCHO_UTIL, 3, 'TIMBRE ELECTRÓNICO SII', 0, 1, 'C');
+        $this->Cell(self::ANCHO_UTIL, 3, $this->utf8ToLatin1('TIMBRE ELECTRÓNICO SII'), 0, 1, 'C');
         $this->Ln(2);
 
         // Generar código PDF417 del timbre
@@ -378,7 +378,7 @@ class BoletaPDF extends FPDF {
             $total = (int) $this->xml->Documento->Encabezado->Totales->MntTotal;
             $this->Cell(self::ANCHO_UTIL, 3, 'Monto: $' . number_format($total, 0, ',', '.'), 0, 1, 'C');
         } else {
-            $this->Cell(self::ANCHO_UTIL, 3, 'Timbre Electrónico', 0, 1, 'C');
+            $this->Cell(self::ANCHO_UTIL, 3, $this->utf8ToLatin1('Timbre Electrónico'), 0, 1, 'C');
         }
     }
 
