@@ -13,7 +13,7 @@ class BoletaPDF extends FPDF {
     private $xml; // Declarar propiedad para evitar warning PHP 8.2+
 
     public function __construct($datos_boleta, $dte_xml) {
-        parent::__construct('P', 'mm', array(80, 200)); // Tamaño ticket 80mm ancho
+        parent::__construct('P', 'mm', array(80, 297)); // Tamaño ticket 80mm ancho x A4 alto
         $this->datos_boleta = $datos_boleta;
         $this->dte_xml = $dte_xml;
 
@@ -103,20 +103,20 @@ class BoletaPDF extends FPDF {
 
         // Tipo de documento
         $tipo_doc = $idDoc['TipoDTE'];
-        $nombre_doc = 'BOLETA ELECTRONICA';
+        $nombre_doc = 'BOLETA ELECTRÓNICA';
 
         switch ($tipo_doc) {
             case 39:
-                $nombre_doc = 'BOLETA ELECTRONICA';
+                $nombre_doc = 'BOLETA ELECTRÓNICA';
                 break;
             case 41:
-                $nombre_doc = 'BOLETA EXENTA ELECTRONICA';
+                $nombre_doc = 'BOLETA EXENTA ELECTRÓNICA';
                 break;
             case 61:
-                $nombre_doc = 'NOTA DE CREDITO ELECTRONICA';
+                $nombre_doc = 'NOTA DE CRÉDITO ELECTRÓNICA';
                 break;
             case 56:
-                $nombre_doc = 'NOTA DE DEBITO ELECTRONICA';
+                $nombre_doc = 'NOTA DE DÉBITO ELECTRÓNICA';
                 break;
         }
 
@@ -126,7 +126,7 @@ class BoletaPDF extends FPDF {
 
         // Folio
         $this->SetFont('Arial', 'B', 11);
-        $this->Cell(0, 5, 'N° ' . $idDoc['Folio'], 0, 1, 'C');
+        $this->Cell(0, 5, $this->utf8ToLatin1('N° ') . $idDoc['Folio'], 0, 1, 'C');
 
         // Fecha
         $this->SetFont('Arial', '', 8);
