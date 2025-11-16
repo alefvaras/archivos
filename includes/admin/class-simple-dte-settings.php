@@ -1,0 +1,238 @@
+<?php
+/**
+ * Configuración del plugin
+ *
+ * @package Simple_DTE
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+class Simple_DTE_Settings {
+
+    /**
+     * Inicializar
+     */
+    public static function init() {
+        add_action('admin_init', array(__CLASS__, 'register_settings'));
+    }
+
+    /**
+     * Registrar configuraciones
+     */
+    public static function register_settings() {
+        // Sección API
+        register_setting('simple_dte_settings', 'simple_dte_ambiente');
+        register_setting('simple_dte_settings', 'simple_dte_api_key');
+        register_setting('simple_dte_settings', 'simple_dte_debug');
+
+        // Sección Emisor
+        register_setting('simple_dte_settings', 'simple_dte_rut_emisor');
+        register_setting('simple_dte_settings', 'simple_dte_razon_social');
+        register_setting('simple_dte_settings', 'simple_dte_giro');
+        register_setting('simple_dte_settings', 'simple_dte_direccion');
+        register_setting('simple_dte_settings', 'simple_dte_comuna');
+
+        // Sección Certificado
+        register_setting('simple_dte_settings', 'simple_dte_cert_rut');
+        register_setting('simple_dte_settings', 'simple_dte_cert_password');
+        register_setting('simple_dte_settings', 'simple_dte_cert_path');
+    }
+
+    /**
+     * Renderizar formulario de configuración
+     */
+    public static function render_settings_form() {
+        ?>
+        <form method="post" action="options.php" enctype="multipart/form-data">
+            <?php settings_fields('simple_dte_settings'); ?>
+
+            <table class="form-table">
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('Configuración de API', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_ambiente"><?php _e('Ambiente', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <select name="simple_dte_ambiente" id="simple_dte_ambiente">
+                            <option value="certificacion" <?php selected(get_option('simple_dte_ambiente'), 'certificacion'); ?>>
+                                <?php _e('Certificación/Pruebas', 'simple-dte'); ?>
+                            </option>
+                            <option value="produccion" <?php selected(get_option('simple_dte_ambiente'), 'produccion'); ?>>
+                                <?php _e('Producción', 'simple-dte'); ?>
+                            </option>
+                        </select>
+                        <p class="description">
+                            <?php _e('IMPORTANTE: Use Certificación para pruebas. Cambie a Producción solo cuando esté listo.', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_api_key"><?php _e('API Key', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_api_key" id="simple_dte_api_key"
+                               value="<?php echo esc_attr(get_option('simple_dte_api_key')); ?>"
+                               class="regular-text" />
+                        <p class="description">
+                            <?php _e('Obtenga su API Key en simpleapi.cl', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_debug"><?php _e('Modo Debug', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="checkbox" name="simple_dte_debug" id="simple_dte_debug" value="1"
+                               <?php checked(get_option('simple_dte_debug'), 1); ?> />
+                        <?php _e('Activar logs detallados', 'simple-dte'); ?>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('Datos del Emisor', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_rut_emisor"><?php _e('RUT Emisor', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_rut_emisor" id="simple_dte_rut_emisor"
+                               value="<?php echo esc_attr(get_option('simple_dte_rut_emisor')); ?>"
+                               placeholder="12345678-9" />
+                        <p class="description"><?php _e('Con guión y dígito verificador', 'simple-dte'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_razon_social"><?php _e('Razón Social', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_razon_social" id="simple_dte_razon_social"
+                               value="<?php echo esc_attr(get_option('simple_dte_razon_social')); ?>"
+                               class="regular-text" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_giro"><?php _e('Giro', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_giro" id="simple_dte_giro"
+                               value="<?php echo esc_attr(get_option('simple_dte_giro')); ?>"
+                               class="regular-text" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_direccion"><?php _e('Dirección', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_direccion" id="simple_dte_direccion"
+                               value="<?php echo esc_attr(get_option('simple_dte_direccion')); ?>"
+                               class="regular-text" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_comuna"><?php _e('Comuna', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_comuna" id="simple_dte_comuna"
+                               value="<?php echo esc_attr(get_option('simple_dte_comuna')); ?>" />
+                    </td>
+                </tr>
+
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('Certificado Digital', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_cert_rut"><?php _e('RUT del Certificado', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_cert_rut" id="simple_dte_cert_rut"
+                               value="<?php echo esc_attr(get_option('simple_dte_cert_rut')); ?>"
+                               placeholder="12345678-9" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_cert_password"><?php _e('Contraseña del Certificado', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="password" name="simple_dte_cert_password" id="simple_dte_cert_password"
+                               value="<?php echo esc_attr(get_option('simple_dte_cert_password')); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="cert_file_upload"><?php _e('Archivo PFX', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="file" name="cert_file" id="cert_file_upload" accept=".pfx,.p12" />
+                        <p class="description">
+                            <?php
+                            $cert_path = get_option('simple_dte_cert_path');
+                            if ($cert_path && file_exists($cert_path)) {
+                                echo '✓ ' . __('Certificado cargado', 'simple-dte');
+                            } else {
+                                _e('No hay certificado cargado', 'simple-dte');
+                            }
+                            ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(); ?>
+        </form>
+
+        <?php
+        // Procesar upload del certificado
+        if (!empty($_FILES['cert_file']['name'])) {
+            self::process_cert_upload();
+        }
+    }
+
+    /**
+     * Procesar upload del certificado
+     */
+    private static function process_cert_upload() {
+        if (empty($_FILES['cert_file'])) {
+            return;
+        }
+
+        $file = $_FILES['cert_file'];
+
+        $validation = Simple_DTE_Helpers::validate_upload($file, array('pfx', 'p12'));
+
+        if (!$validation['success']) {
+            add_settings_error('simple_dte_settings', 'cert_upload', $validation['message']);
+            return;
+        }
+
+        $upload_dir = Simple_DTE_Helpers::create_secure_upload_dir();
+        $filename = 'certificado-' . time() . '.pfx';
+        $filepath = $upload_dir . $filename;
+
+        if (@move_uploaded_file($file['tmp_name'], $filepath)) {
+            @chmod($filepath, 0600);
+            update_option('simple_dte_cert_path', $filepath);
+            add_settings_error('simple_dte_settings', 'cert_upload', __('Certificado cargado correctamente', 'simple-dte'), 'updated');
+        } else {
+            add_settings_error('simple_dte_settings', 'cert_upload', __('Error al cargar certificado', 'simple-dte'));
+        }
+    }
+}
