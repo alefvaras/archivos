@@ -3,6 +3,11 @@
 /**
  * Sistema de Generación de Boletas Electrónicas
  * Genera, envía al SII y opcionalmente envía por email al cliente
+ *
+ * MODO DE OPERACIÓN:
+ * - Detecta automáticamente si hay BD configurada (variables de entorno)
+ * - Si BD disponible: usa BoletaRepository y DTELogger
+ * - Si no: usa modo archivo tradicional (folios_usados.txt)
  */
 
 error_reporting(E_ALL);
@@ -10,6 +15,60 @@ ini_set('display_errors', 1);
 
 // Cargar generador de PDF
 require_once(__DIR__ . '/lib/generar-pdf-boleta.php');
+
+// ========================================
+// AUTO-DETECCIÓN DE COMPONENTES
+// ========================================
+
+// Detectar si hay base de datos configurada
+$USAR_BD = getenv('DB_NAME') && getenv('DB_USER');
+$USAR_LOGGING = true; // Siempre usar logging
+
+// Inicializar componentes opcionales
+$GLOBAL_REPO = null;
+$GLOBAL_LOGGER = null;
+
+if ($USAR_LOGGING) {
+    try {
+        require_once(__DIR__ . '/lib/DTELogger.php');
+        $GLOBAL_LOGGER = new DTELogger(
+            log_dir: __DIR__ . '/logs',
+            usar_bd: $USAR_BD,
+            niveles_activos: [
+                DTELogger::NIVEL_INFO,
+                DTELogger::NIVEL_WARNING,
+                DTELogger::NIVEL_ERROR,
+                DTELogger::NIVEL_CRITICAL
+            ]
+        );
+    } catch (Exception $e) {
+        error_log("Logger no disponible: {$e->getMessage()}");
+        $USAR_LOGGING = false;
+    }
+}
+
+if ($USAR_BD) {
+    try {
+        require_once(__DIR__ . '/lib/BoletaRepository.php');
+        $GLOBAL_REPO = new BoletaRepository();
+
+        if ($GLOBAL_LOGGER) {
+            $GLOBAL_LOGGER->info('sistema', 'Sistema iniciado con base de datos', [
+                'modo' => 'bd'
+            ]);
+        }
+    } catch (Exception $e) {
+        error_log("Base de datos no disponible: {$e->getMessage()}");
+        $USAR_BD = false;
+        $GLOBAL_REPO = null;
+
+        if ($GLOBAL_LOGGER) {
+            $GLOBAL_LOGGER->warning('sistema', 'BD no disponible, usando modo archivo', [
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+}
 
 // ========================================
 // CONFIGURACIÓN
@@ -65,14 +124,48 @@ function leer_caf($caf_path) {
 
 /**
  * Obtener siguiente folio disponible
+ * Usa BD si está disponible, sino archivo de control
  */
 function obtener_siguiente_folio($caf_info) {
-    // En producción, esto debería consultar una base de datos
-    // Por ahora, leer de un archivo de control
+    global $USAR_BD, $GLOBAL_REPO, $GLOBAL_LOGGER;
+
+    $tipo_dte = $caf_info['tipo_dte'] ?? 39;
+
+    // MODO BD: Usar repository
+    if ($USAR_BD && $GLOBAL_REPO) {
+        try {
+            $folio_info = $GLOBAL_REPO->obtenerProximoFolio($tipo_dte);
+            $folio = $folio_info['folio'];
+
+            if ($GLOBAL_LOGGER) {
+                $GLOBAL_LOGGER->info('folio', "Folio obtenido desde BD: {$folio}", [
+                    'folio' => $folio,
+                    'tipo_dte' => $tipo_dte,
+                    'caf_id' => $folio_info['caf_id']
+                ]);
+            }
+
+            return $folio;
+        } catch (Exception $e) {
+            if ($GLOBAL_LOGGER) {
+                $GLOBAL_LOGGER->error('folio', "Error obteniendo folio desde BD: {$e->getMessage()}");
+            }
+            throw $e;
+        }
+    }
+
+    // MODO ARCHIVO: Tradicional
     $control_file = __DIR__ . '/folios_usados.txt';
 
     if (!file_exists($control_file)) {
         file_put_contents($control_file, $caf_info['folio_desde']);
+
+        if ($GLOBAL_LOGGER) {
+            $GLOBAL_LOGGER->info('folio', "Archivo de folios inicializado: {$caf_info['folio_desde']}", [
+                'folio_inicial' => $caf_info['folio_desde']
+            ]);
+        }
+
         return $caf_info['folio_desde'];
     }
 
@@ -81,7 +174,16 @@ function obtener_siguiente_folio($caf_info) {
 
     // Verificar si quedan folios disponibles
     if ($siguiente_folio > $caf_info['folio_hasta']) {
-        throw new Exception("No hay más folios disponibles en el CAF actual. Por favor, genere un nuevo CAF en el portal del SII.");
+        $error = "No hay más folios disponibles en el CAF actual";
+
+        if ($GLOBAL_LOGGER) {
+            $GLOBAL_LOGGER->error('folio', $error, [
+                'ultimo_folio' => $ultimo_folio,
+                'folio_hasta' => $caf_info['folio_hasta']
+            ]);
+        }
+
+        throw new Exception("{$error}. Por favor, genere un nuevo CAF en el portal del SII.");
     }
 
     // Advertir si quedan pocos folios (menos de 10)
@@ -89,9 +191,23 @@ function obtener_siguiente_folio($caf_info) {
     if ($folios_restantes <= 10) {
         echo "  ⚠️  ADVERTENCIA: Quedan solo {$folios_restantes} folios disponibles\n";
         echo "     Por favor, genere un nuevo CAF en el portal del SII pronto\n\n";
+
+        if ($GLOBAL_LOGGER) {
+            $GLOBAL_LOGGER->warning('folio', "Quedan pocos folios disponibles: {$folios_restantes}", [
+                'folios_restantes' => $folios_restantes,
+                'folio_hasta' => $caf_info['folio_hasta']
+            ]);
+        }
     }
 
     file_put_contents($control_file, $siguiente_folio);
+
+    if ($GLOBAL_LOGGER) {
+        $GLOBAL_LOGGER->info('folio', "Folio obtenido desde archivo: {$siguiente_folio}", [
+            'folio' => $siguiente_folio
+        ]);
+    }
+
     return $siguiente_folio;
 }
 
