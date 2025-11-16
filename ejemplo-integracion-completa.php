@@ -134,7 +134,7 @@ if ($usar_bd && $repo) {
     } else {
         // Leer primer folio del CAF
         $caf_xml = simplexml_load_file(CAF_PATH);
-        $folio = (int) $caf_xml->DA->RNG->D;
+        $folio = (int) $caf_xml->CAF->DA->RNG->D;
     }
 
     // Guardar folio usado

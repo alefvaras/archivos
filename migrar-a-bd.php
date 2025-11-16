@@ -92,16 +92,18 @@ foreach ($caf_files as $caf_file) {
         // Leer CAF
         $caf_xml = simplexml_load_file($caf_file);
 
-        if (!isset($caf_xml->DA->RNG->D)) {
+        // Verificar estructura del CAF (<AUTORIZACION><CAF><DA>)
+        if (!isset($caf_xml->CAF->DA->RNG->D)) {
             echo "    ⚠️  No es un CAF válido, saltando...\n";
             $cafs_saltados++;
             continue;
         }
 
-        $tipo_dte = (int) $caf_xml->DA->TD;
-        $folio_desde = (int) $caf_xml->DA->RNG->D;
-        $folio_hasta = (int) $caf_xml->DA->RNG->H;
-        $fecha_auth = (string) $caf_xml->DA->FA;
+        $da = $caf_xml->CAF->DA;
+        $tipo_dte = (int) $da->TD;
+        $folio_desde = (int) $da->RNG->D;
+        $folio_hasta = (int) $da->RNG->H;
+        $fecha_auth = (string) $da->FA;
 
         // Verificar si ya existe
         $existente = $db->fetchOne(
