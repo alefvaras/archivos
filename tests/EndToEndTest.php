@@ -42,6 +42,9 @@ class EndToEndTest {
 
         // Mostrar resumen
         $this->showSummary();
+
+        // Retornar resultado
+        return $this->tests_failed == 0;
     }
 
     // =========================================================================

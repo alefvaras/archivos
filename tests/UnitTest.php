@@ -37,6 +37,9 @@ class UnitTest {
 
         // Mostrar resumen
         $this->showSummary();
+
+        // Retornar resultado
+        return $this->tests_failed == 0;
     }
 
     // =========================================================================
@@ -293,8 +296,8 @@ class UnitTest {
             if ($caf_xml) {
                 // Test 8.3: CAF tiene rango de folios
                 $test_name = "CAF tiene rango de folios";
-                $rango_desde = (int)$caf_xml->DA->RNG->D;
-                $rango_hasta = (int)$caf_xml->DA->RNG->H;
+                $rango_desde = (int)$caf_xml->CAF->DA->RNG->D;
+                $rango_hasta = (int)$caf_xml->CAF->DA->RNG->H;
                 $this->assert(
                     $rango_desde > 0 && $rango_hasta > $rango_desde,
                     $test_name,
