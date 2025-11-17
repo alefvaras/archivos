@@ -513,11 +513,27 @@ class WC_Boletas_Electronicas {
     }
 
     /**
-     * Agregar metabox en admin de orden
+     * Agregar metabox en admin de orden (compatible HPOS y WC antiguo)
      */
     public function add_boleta_metabox() {
-        // HPOS compatible - works for both post and order screens
-        $screen = wc_get_container()->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)->custom_orders_table_usage_is_enabled()
+        // Detectar si HPOS está habilitado (compatible con WC 3.6+)
+        $hpos_enabled = false;
+
+        // Método 1: Usar OrderUtil si existe (WC 7.1+)
+        if (class_exists('Automattic\WooCommerce\Utilities\OrderUtil')) {
+            $hpos_enabled = \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+        }
+        // Método 2: Fallback para WC antiguo
+        elseif (function_exists('wc_get_container') && class_exists('\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController')) {
+            try {
+                $hpos_enabled = wc_get_container()->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)->custom_orders_table_usage_is_enabled();
+            } catch (Exception $e) {
+                $hpos_enabled = false;
+            }
+        }
+
+        // Determinar el screen ID correcto
+        $screen = $hpos_enabled && function_exists('wc_get_page_screen_id')
             ? wc_get_page_screen_id('shop-order')
             : 'shop_order';
 

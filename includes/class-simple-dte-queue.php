@@ -97,7 +97,7 @@ class Simple_DTE_Queue {
             "SELECT * FROM " . self::$table_name . "
              WHERE order_id = %d
              AND dte_tipo = %s
-             AND status IN (%s, %s)",
+             AND (status = %s OR status = %s)",
             $order_id,
             $dte_tipo,
             self::STATUS_PENDING,

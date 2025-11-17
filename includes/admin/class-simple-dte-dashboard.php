@@ -66,73 +66,75 @@ class Simple_DTE_Dashboard {
     }
 
     /**
-     * Renderizar estadísticas de DTEs
+     * Renderizar estadísticas de DTEs (compatible HPOS)
      */
     private static function render_dte_statistics() {
-        global $wpdb;
-
         echo '<h3 style="margin-top: 0;">📊 DTEs Generadas</h3>';
 
-        // DTEs hoy
+        // DTEs hoy - usar wc_get_orders() para compatibilidad HPOS
         $hoy_inicio = date('Y-m-d 00:00:00');
         $hoy_fin = date('Y-m-d 23:59:59');
 
-        $dtes_hoy = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-             WHERE pm.meta_key = '_simple_dte_generada'
-             AND pm.meta_value = 'yes'
-             AND p.post_type = 'shop_order'
-             AND p.post_date >= %s
-             AND p.post_date <= %s",
-            $hoy_inicio,
-            $hoy_fin
-        ));
+        $dtes_hoy_args = [
+            'limit' => -1,
+            'return' => 'ids',
+            'date_created' => $hoy_inicio . '...' . $hoy_fin,
+            'meta_query' => [
+                [
+                    'key' => '_simple_dte_generada',
+                    'value' => 'yes'
+                ]
+            ]
+        ];
+        $dtes_hoy = count(wc_get_orders($dtes_hoy_args));
 
         // DTEs esta semana
         $semana_inicio = date('Y-m-d 00:00:00', strtotime('monday this week'));
         $semana_fin = date('Y-m-d 23:59:59');
 
-        $dtes_semana = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-             WHERE pm.meta_key = '_simple_dte_generada'
-             AND pm.meta_value = 'yes'
-             AND p.post_type = 'shop_order'
-             AND p.post_date >= %s
-             AND p.post_date <= %s",
-            $semana_inicio,
-            $semana_fin
-        ));
+        $dtes_semana_args = [
+            'limit' => -1,
+            'return' => 'ids',
+            'date_created' => $semana_inicio . '...' . $semana_fin,
+            'meta_query' => [
+                [
+                    'key' => '_simple_dte_generada',
+                    'value' => 'yes'
+                ]
+            ]
+        ];
+        $dtes_semana = count(wc_get_orders($dtes_semana_args));
 
         // DTEs este mes
         $mes_inicio = date('Y-m-01 00:00:00');
         $mes_fin = date('Y-m-t 23:59:59');
 
-        $dtes_mes = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-             WHERE pm.meta_key = '_simple_dte_generada'
-             AND pm.meta_value = 'yes'
-             AND p.post_type = 'shop_order'
-             AND p.post_date >= %s
-             AND p.post_date <= %s",
-            $mes_inicio,
-            $mes_fin
-        ));
+        $dtes_mes_args = [
+            'limit' => -1,
+            'return' => 'ids',
+            'date_created' => $mes_inicio . '...' . $mes_fin,
+            'meta_query' => [
+                [
+                    'key' => '_simple_dte_generada',
+                    'value' => 'yes'
+                ]
+            ]
+        ];
+        $dtes_mes = count(wc_get_orders($dtes_mes_args));
 
         // Notas de crédito este mes
-        $nc_mes = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-             WHERE pm.meta_key = '_simple_dte_nc_generada'
-             AND pm.meta_value = 'yes'
-             AND p.post_type = 'shop_order'
-             AND p.post_date >= %s
-             AND p.post_date <= %s",
-            $mes_inicio,
-            $mes_fin
-        ));
+        $nc_mes_args = [
+            'limit' => -1,
+            'return' => 'ids',
+            'date_created' => $mes_inicio . '...' . $mes_fin,
+            'meta_query' => [
+                [
+                    'key' => '_simple_dte_nc_generada',
+                    'value' => 'yes'
+                ]
+            ]
+        ];
+        $nc_mes = count(wc_get_orders($nc_mes_args));
 
         echo '<div class="simple-dte-stats">';
         echo '<div class="stat-box">';
