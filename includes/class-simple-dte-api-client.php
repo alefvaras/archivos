@@ -12,6 +12,16 @@ if (!defined('ABSPATH')) {
 class Simple_DTE_API_Client {
 
     /**
+     * Máximo de reintentos para operaciones críticas
+     */
+    const MAX_RETRIES = 3;
+
+    /**
+     * Tiempo de espera inicial para backoff (segundos)
+     */
+    const BACKOFF_INITIAL = 2;
+
+    /**
      * Obtener API Key
      */
     private static function get_api_key() {
@@ -23,20 +33,36 @@ class Simple_DTE_API_Client {
      */
     private static function get_auth_headers() {
         return array(
-            'Authorization' => self::get_api_key()
+            'Authorization' => self::get_api_key(),
+            'User-Agent' => 'Simple-DTE-WordPress/' . (defined('SIMPLE_DTE_VERSION') ? SIMPLE_DTE_VERSION : '1.0')
         );
     }
 
     /**
-     * Generar DTE (Boleta, Factura, Nota, etc.)
+     * Generar DTE (Boleta, Factura, Nota, etc.) con reintentos automáticos
      *
      * @param array $documento_data Datos del documento
      * @param string $cert_path Ruta al certificado PFX
      * @param string $caf_path Ruta al archivo CAF
+     * @param bool $with_health_check Si verificar salud antes de operar
      * @return array|WP_Error Respuesta de la API
      */
-    public static function generar_dte($documento_data, $cert_path, $caf_path) {
-        Simple_DTE_Logger::debug('API: Generando DTE', array('tipo' => $documento_data['Documento']['Encabezado']['IdentificacionDTE']['TipoDTE']));
+    public static function generar_dte($documento_data, $cert_path, $caf_path, $with_health_check = true) {
+        Simple_DTE_Logger::info('API: Iniciando generación de DTE', array(
+            'tipo' => $documento_data['Documento']['Encabezado']['IdentificacionDTE']['TipoDTE'],
+            'folio' => $documento_data['Documento']['Encabezado']['IdentificacionDTE']['Folio']
+        ));
+
+        // Health check previo (solo si está disponible la clase)
+        if ($with_health_check && class_exists('Simple_DTE_Health_Check')) {
+            $health_check = Simple_DTE_Health_Check::verify_before_operation(false);
+            if (is_wp_error($health_check)) {
+                Simple_DTE_Logger::warning('Health check falló, continuando de todos modos', array(
+                    'error' => $health_check->get_error_message()
+                ));
+                // No bloqueamos la operación, solo advertimos
+            }
+        }
 
         // Validar archivos
         if (!file_exists($cert_path)) {
@@ -74,17 +100,21 @@ class Simple_DTE_API_Client {
             )
         ), $boundary);
 
-        // Hacer petición
-        $response = wp_remote_post($url, array(
+        $request_options = array(
             'headers' => array_merge(
                 self::get_auth_headers(),
                 array('Content-Type' => 'multipart/form-data; boundary=' . $boundary)
             ),
             'body' => $payload,
             'timeout' => 60
-        ));
+        );
 
-        return self::process_response($response);
+        // Ejecutar con reintentos automáticos
+        return self::execute_with_retries('POST', $url, $request_options, array(
+            'operation' => 'generar_dte',
+            'tipo_dte' => $documento_data['Documento']['Encabezado']['IdentificacionDTE']['TipoDTE'],
+            'folio' => $documento_data['Documento']['Encabezado']['IdentificacionDTE']['Folio']
+        ));
     }
 
     /**
@@ -302,5 +332,171 @@ class Simple_DTE_API_Client {
         $status_code = wp_remote_retrieve_response_code($response);
 
         return $status_code === 200 || $status_code === 401; // 401 significa que la API responde
+    }
+
+    /**
+     * Ejecutar petición HTTP con reintentos automáticos y exponential backoff
+     *
+     * @param string $method Método HTTP (GET, POST, etc.)
+     * @param string $url URL del endpoint
+     * @param array $options Opciones de wp_remote_*
+     * @param array $context Contexto para logs
+     * @return array|WP_Error Respuesta procesada
+     */
+    private static function execute_with_retries($method, $url, $options, $context = array()) {
+        $attempt = 0;
+        $last_error = null;
+
+        while ($attempt < self::MAX_RETRIES) {
+            $attempt++;
+
+            $start_time = microtime(true);
+
+            // Ejecutar petición según el método
+            if ($method === 'POST') {
+                $response = wp_remote_post($url, $options);
+            } elseif ($method === 'GET') {
+                $response = wp_remote_get($url, $options);
+            } else {
+                $response = wp_remote_request($url, array_merge($options, array('method' => $method)));
+            }
+
+            $end_time = microtime(true);
+            $duration_ms = round(($end_time - $start_time) * 1000);
+
+            $log_context = array_merge($context, array(
+                'attempt' => $attempt,
+                'max_retries' => self::MAX_RETRIES,
+                'duration_ms' => $duration_ms
+            ));
+
+            // Si es un error de WordPress (no pudo conectar)
+            if (is_wp_error($response)) {
+                $last_error = $response;
+
+                Simple_DTE_Logger::warning('Intento de API falló', array_merge($log_context, array(
+                    'error' => $response->get_error_message(),
+                    'error_code' => $response->get_error_code()
+                )));
+
+                // Si no es el último intento, esperar antes de reintentar
+                if ($attempt < self::MAX_RETRIES) {
+                    $backoff_time = self::BACKOFF_INITIAL * pow(2, $attempt - 1);
+                    Simple_DTE_Logger::debug('Esperando antes de reintentar', array(
+                        'backoff_seconds' => $backoff_time,
+                        'next_attempt' => $attempt + 1
+                    ));
+                    sleep($backoff_time);
+                    continue;
+                }
+
+                // Último intento falló
+                Simple_DTE_Logger::error('Todos los intentos de API fallaron', array_merge($log_context, array(
+                    'final_error' => $response->get_error_message()
+                )));
+
+                return $response;
+            }
+
+            // Obtener código de estado HTTP
+            $status_code = wp_remote_retrieve_response_code($response);
+            $log_context['http_code'] = $status_code;
+
+            // Si es un error HTTP recuperable (500, 502, 503, 504), reintentar
+            if (in_array($status_code, array(500, 502, 503, 504, 408, 429))) {
+                $body = wp_remote_retrieve_body($response);
+                $last_error = new WP_Error(
+                    'api_http_error',
+                    sprintf('Error HTTP %d: %s', $status_code, substr($body, 0, 200))
+                );
+
+                Simple_DTE_Logger::warning('Error HTTP recuperable', array_merge($log_context, array(
+                    'body_preview' => substr($body, 0, 100)
+                )));
+
+                // Si no es el último intento, esperar antes de reintentar
+                if ($attempt < self::MAX_RETRIES) {
+                    $backoff_time = self::BACKOFF_INITIAL * pow(2, $attempt - 1);
+
+                    // Para 429 (rate limit), respetar header Retry-After si existe
+                    if ($status_code === 429) {
+                        $retry_after = wp_remote_retrieve_header($response, 'retry-after');
+                        if ($retry_after && is_numeric($retry_after)) {
+                            $backoff_time = max($backoff_time, (int) $retry_after);
+                        }
+                    }
+
+                    Simple_DTE_Logger::debug('Esperando antes de reintentar', array(
+                        'backoff_seconds' => $backoff_time,
+                        'next_attempt' => $attempt + 1,
+                        'reason' => 'http_' . $status_code
+                    ));
+
+                    sleep($backoff_time);
+                    continue;
+                }
+
+                // Último intento falló
+                Simple_DTE_Logger::error('Todos los intentos HTTP fallaron', $log_context);
+                return $last_error;
+            }
+
+            // Si llegamos aquí, la petición fue exitosa (o es un error no recuperable)
+            Simple_DTE_Logger::info('Petición API exitosa', $log_context);
+
+            return self::process_response($response);
+        }
+
+        // No debería llegar aquí, pero por si acaso
+        return $last_error ?? new WP_Error('api_unknown_error', 'Error desconocido en reintentos');
+    }
+
+    /**
+     * Obtener estadísticas de la API
+     *
+     * @return array Estadísticas de uso
+     */
+    public static function get_api_stats() {
+        global $wpdb;
+
+        $stats = array(
+            'total_requests' => 0,
+            'successful_requests' => 0,
+            'failed_requests' => 0,
+            'avg_response_time_ms' => 0,
+            'last_request' => null
+        );
+
+        // Si existe tabla de logs, obtener estadísticas
+        $table = $wpdb->prefix . 'simple_dte_logs';
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
+
+        if ($table_exists) {
+            // Total de requests en las últimas 24 horas
+            $stats['total_requests'] = $wpdb->get_var(
+                "SELECT COUNT(*) FROM $table
+                 WHERE mensaje LIKE '%API:%'
+                 AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)"
+            );
+
+            // Requests exitosos
+            $stats['successful_requests'] = $wpdb->get_var(
+                "SELECT COUNT(*) FROM $table
+                 WHERE mensaje LIKE '%API exitosa%'
+                 AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)"
+            );
+
+            $stats['failed_requests'] = $stats['total_requests'] - $stats['successful_requests'];
+
+            // Última petición
+            $stats['last_request'] = $wpdb->get_var(
+                "SELECT created_at FROM $table
+                 WHERE mensaje LIKE '%API:%'
+                 ORDER BY created_at DESC
+                 LIMIT 1"
+            );
+        }
+
+        return $stats;
     }
 }
