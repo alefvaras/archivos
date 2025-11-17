@@ -111,12 +111,14 @@ class BoletaPDF extends FPDF {
             return $url;
         }
 
-        // Si es URL de WordPress (uploads)
-        $upload_dir = wp_upload_dir();
-        if (strpos($url, $upload_dir['baseurl']) !== false) {
-            $file_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $url);
-            if (file_exists($file_path)) {
-                return $file_path;
+        // Si es URL de WordPress (uploads) y la función existe
+        if (function_exists('wp_upload_dir')) {
+            $upload_dir = wp_upload_dir();
+            if (strpos($url, $upload_dir['baseurl']) !== false) {
+                $file_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $url);
+                if (file_exists($file_path)) {
+                    return $file_path;
+                }
             }
         }
 
@@ -143,9 +145,11 @@ class BoletaPDF extends FPDF {
         $emisor = $this->datos_boleta['Documento']['Encabezado']['Emisor'];
 
         // Logo de la empresa (si está configurado)
-        $logo_url = get_option('simple_dte_logo_url');
-        if (!empty($logo_url)) {
-            $this->agregarLogo($logo_url);
+        if (function_exists('get_option')) {
+            $logo_url = get_option('simple_dte_logo_url');
+            if (!empty($logo_url)) {
+                $this->agregarLogo($logo_url);
+            }
         }
 
         // Nombre empresa
