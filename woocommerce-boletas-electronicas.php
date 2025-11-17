@@ -126,6 +126,31 @@ class WC_Boletas_Electronicas {
         if (file_exists($this->boletas_path . 'generar-boleta.php')) {
             require_once $this->boletas_path . 'generar-boleta.php';
         }
+
+        // Cargar nuevas clases del sistema
+        if (file_exists($this->boletas_path . 'includes/class-simple-dte-logger.php')) {
+            require_once $this->boletas_path . 'includes/class-simple-dte-logger.php';
+        }
+
+        if (file_exists($this->boletas_path . 'includes/class-simple-dte-rut-cache.php')) {
+            require_once $this->boletas_path . 'includes/class-simple-dte-rut-cache.php';
+        }
+
+        if (file_exists($this->boletas_path . 'includes/class-simple-dte-queue.php')) {
+            require_once $this->boletas_path . 'includes/class-simple-dte-queue.php';
+        }
+
+        if (file_exists($this->boletas_path . 'includes/class-simple-dte-export.php')) {
+            require_once $this->boletas_path . 'includes/class-simple-dte-export.php';
+        }
+
+        if (file_exists($this->boletas_path . 'includes/class-simple-dte-nota-credito-generator.php')) {
+            require_once $this->boletas_path . 'includes/class-simple-dte-nota-credito-generator.php';
+        }
+
+        if (file_exists($this->boletas_path . 'includes/admin/class-simple-dte-dashboard.php')) {
+            require_once $this->boletas_path . 'includes/admin/class-simple-dte-dashboard.php';
+        }
     }
 
     /**
@@ -279,28 +304,53 @@ class WC_Boletas_Electronicas {
      * Generar boleta automáticamente al completar orden
      */
     public function generar_boleta_automatica($order_id) {
+        // Obtener orden (compatible HPOS)
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            return;
+        }
+
         // Verificar que no se haya generado ya
-        $folio = get_post_meta($order_id, '_boleta_folio', true);
+        $folio = $order->get_meta('_boleta_folio');
         if ($folio) {
             $this->log_info('woocommerce', "Boleta ya generada para orden #{$order_id}: Folio {$folio}");
+
+            // Log usando nuevo sistema
+            if (class_exists('Simple_DTE_Logger')) {
+                Simple_DTE_Logger::info('Boleta ya generada, omitiendo', [
+                    'order_id' => $order_id,
+                    'folio' => $folio,
+                    'operacion' => 'boleta_auto_skip'
+                ]);
+            }
+
             return;
         }
 
         $this->log_info('woocommerce', "Iniciando generación automática de boleta para orden #{$order_id}");
 
+        // Log usando nuevo sistema
+        if (class_exists('Simple_DTE_Logger')) {
+            Simple_DTE_Logger::info('Iniciando generación automática de boleta', [
+                'order_id' => $order_id,
+                'operacion' => 'boleta_auto_start'
+            ]);
+        }
+
         try {
             $resultado = $this->generar_boleta_desde_orden($order_id);
 
             if ($resultado && isset($resultado['folio'])) {
-                // Guardar datos de la boleta en la orden
-                update_post_meta($order_id, '_boleta_folio', $resultado['folio']);
-                update_post_meta($order_id, '_boleta_track_id', $resultado['track_id'] ?? '');
-                update_post_meta($order_id, '_boleta_estado', $resultado['estado']['estado'] ?? 'REC');
-                update_post_meta($order_id, '_boleta_fecha', date('Y-m-d H:i:s'));
-                update_post_meta($order_id, '_boleta_pdf_path', $resultado['pdf_path'] ?? '');
+                // Guardar datos de la boleta en la orden (compatible HPOS)
+                $order->update_meta_data('_boleta_folio', $resultado['folio']);
+                $order->update_meta_data('_boleta_track_id', $resultado['track_id'] ?? '');
+                $order->update_meta_data('_boleta_estado', $resultado['estado']['estado'] ?? 'REC');
+                $order->update_meta_data('_boleta_fecha', date('Y-m-d H:i:s'));
+                $order->update_meta_data('_boleta_pdf_path', $resultado['pdf_path'] ?? '');
+                $order->update_meta_data('_simple_dte_generada', 'yes');
+                $order->save();
 
                 // Agregar nota a la orden
-                $order = wc_get_order($order_id);
                 $order->add_order_note(
                     sprintf(
                         __('Boleta electrónica generada automáticamente. Folio: %s, Track ID: %s', 'wc-boletas-electronicas'),
@@ -310,20 +360,55 @@ class WC_Boletas_Electronicas {
                 );
 
                 $this->log_info('woocommerce', "Boleta generada exitosamente: Folio {$resultado['folio']}");
+
+                // Log usando nuevo sistema
+                if (class_exists('Simple_DTE_Logger')) {
+                    Simple_DTE_Logger::info('Boleta generada exitosamente', [
+                        'order_id' => $order_id,
+                        'folio' => $resultado['folio'],
+                        'track_id' => $resultado['track_id'] ?? '',
+                        'operacion' => 'boleta_auto_success'
+                    ]);
+                }
             } else {
                 throw new Exception('Error generando boleta: resultado inválido');
             }
         } catch (Exception $e) {
             $this->log_error('woocommerce', "Error generando boleta para orden #{$order_id}: " . $e->getMessage());
 
+            // Log usando nuevo sistema
+            if (class_exists('Simple_DTE_Logger')) {
+                Simple_DTE_Logger::error('Error generando boleta automática', [
+                    'order_id' => $order_id,
+                    'error' => $e->getMessage(),
+                    'operacion' => 'boleta_auto_error'
+                ]);
+            }
+
             // Agregar nota de error en la orden
-            $order = wc_get_order($order_id);
             $order->add_order_note(
                 sprintf(
-                    __('Error al generar boleta electrónica: %s', 'wc-boletas-electronicas'),
+                    __('Error al generar boleta electrónica: %s. Se agregó a la cola de reintentos.', 'wc-boletas-electronicas'),
                     $e->getMessage()
                 )
             );
+
+            // Agregar a cola de reintentos
+            if (class_exists('Simple_DTE_Queue')) {
+                $dte_data = [
+                    'order_id' => $order_id,
+                    'tipo_dte' => '39', // Boleta
+                ];
+
+                Simple_DTE_Queue::add_to_queue(
+                    $order_id,
+                    '39',
+                    $dte_data,
+                    $e->getMessage()
+                );
+
+                $this->log_info('woocommerce', "Boleta agregada a cola de reintentos para orden #{$order_id}");
+            }
         }
     }
 
@@ -431,25 +516,38 @@ class WC_Boletas_Electronicas {
      * Agregar metabox en admin de orden
      */
     public function add_boleta_metabox() {
+        // HPOS compatible - works for both post and order screens
+        $screen = wc_get_container()->get(\Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class)->custom_orders_table_usage_is_enabled()
+            ? wc_get_page_screen_id('shop-order')
+            : 'shop_order';
+
         add_meta_box(
             'wc_boleta_electronica',
             __('Boleta Electrónica SII', 'wc-boletas-electronicas'),
             [$this, 'render_boleta_metabox'],
-            'shop_order',
+            $screen,
             'side',
             'high'
         );
     }
 
     /**
-     * Renderizar metabox de boleta
+     * Renderizar metabox de boleta (compatible HPOS)
      */
-    public function render_boleta_metabox($post) {
-        $folio = get_post_meta($post->ID, '_boleta_folio', true);
-        $track_id = get_post_meta($post->ID, '_boleta_track_id', true);
-        $estado = get_post_meta($post->ID, '_boleta_estado', true);
-        $fecha = get_post_meta($post->ID, '_boleta_fecha', true);
-        $pdf_path = get_post_meta($post->ID, '_boleta_pdf_path', true);
+    public function render_boleta_metabox($post_or_order) {
+        // HPOS compatible - $post_or_order puede ser WP_Post o WC_Order
+        $order = $post_or_order instanceof \WC_Order ? $post_or_order : wc_get_order($post_or_order->ID);
+
+        if (!$order) {
+            echo '<p>' . __('Error: No se pudo cargar la orden.', 'wc-boletas-electronicas') . '</p>';
+            return;
+        }
+
+        $folio = $order->get_meta('_boleta_folio');
+        $track_id = $order->get_meta('_boleta_track_id');
+        $estado = $order->get_meta('_boleta_estado');
+        $fecha = $order->get_meta('_boleta_fecha');
+        $pdf_path = $order->get_meta('_boleta_pdf_path');
 
         if ($folio) {
             echo '<div class="boleta-info">';
@@ -461,8 +559,8 @@ class WC_Boletas_Electronicas {
             if ($pdf_path && file_exists($pdf_path)) {
                 $download_url = add_query_arg([
                     'action' => 'download_boleta',
-                    'order_id' => $post->ID,
-                    'nonce' => wp_create_nonce('download_boleta_' . $post->ID)
+                    'order_id' => $order->get_id(),
+                    'nonce' => wp_create_nonce('download_boleta_' . $order->get_id())
                 ], admin_url('admin-ajax.php'));
 
                 echo '<p><a href="' . esc_url($download_url) . '" class="button button-primary">' . __('Descargar PDF', 'wc-boletas-electronicas') . '</a></p>';
@@ -489,11 +587,17 @@ class WC_Boletas_Electronicas {
     }
 
     /**
-     * Mostrar contenido de columna de boleta
+     * Mostrar contenido de columna de boleta (compatible HPOS)
      */
     public function display_boleta_column($column, $post_id) {
         if ($column === 'boleta') {
-            $folio = get_post_meta($post_id, '_boleta_folio', true);
+            $order = wc_get_order($post_id);
+            if (!$order) {
+                echo '<span class="boleta-error">Error</span>';
+                return;
+            }
+
+            $folio = $order->get_meta('_boleta_folio');
             if ($folio) {
                 echo '<span class="boleta-folio">#' . esc_html($folio) . '</span>';
             } else {
