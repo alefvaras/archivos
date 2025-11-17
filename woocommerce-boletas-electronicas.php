@@ -239,19 +239,23 @@ class WC_Boletas_Electronicas {
     }
 
     /**
-     * Guardar campo RUT en la orden
+     * Guardar campo RUT en la orden (compatible HPOS)
      */
     public function save_rut_field($order_id) {
         if (!empty($_POST['billing_rut'])) {
-            update_post_meta($order_id, '_billing_rut', sanitize_text_field($_POST['billing_rut']));
+            $order = wc_get_order($order_id);
+            if ($order) {
+                $order->update_meta_data('_billing_rut', sanitize_text_field($_POST['billing_rut']));
+                $order->save();
+            }
         }
     }
 
     /**
-     * Mostrar RUT en email
+     * Mostrar RUT en email (compatible HPOS)
      */
     public function display_rut_in_email($order, $sent_to_admin, $plain_text) {
-        $rut = get_post_meta($order->get_id(), '_billing_rut', true);
+        $rut = $order->get_meta('_billing_rut');
         if ($rut) {
             if ($plain_text) {
                 echo "RUT: " . esc_html($rut) . "\n";
@@ -262,10 +266,10 @@ class WC_Boletas_Electronicas {
     }
 
     /**
-     * Mostrar RUT en detalles de orden
+     * Mostrar RUT en detalles de orden (compatible HPOS)
      */
     public function display_rut_in_order($order) {
-        $rut = get_post_meta($order->get_id(), '_billing_rut', true);
+        $rut = $order->get_meta('_billing_rut');
         if ($rut) {
             echo '<p><strong>' . __('RUT:', 'wc-boletas-electronicas') . '</strong> ' . esc_html($rut) . '</p>';
         }
@@ -332,8 +336,8 @@ class WC_Boletas_Electronicas {
             throw new Exception("Orden #{$order_id} no encontrada");
         }
 
-        // Extraer datos del cliente
-        $rut = get_post_meta($order_id, '_billing_rut', true);
+        // Extraer datos del cliente (compatible HPOS)
+        $rut = $order->get_meta('_billing_rut');
         if (!$rut) {
             $rut = '66666666-6'; // Cliente genérico si no hay RUT
         }
