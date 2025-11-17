@@ -150,10 +150,10 @@ class Simple_DTE_Plugin {
     public function activate() {
         global $wpdb;
 
-        // Crear tabla de logs
-        $table_logs = $wpdb->prefix . 'simple_dte_logs';
         $charset_collate = $wpdb->get_charset_collate();
 
+        // Crear tabla de logs
+        $table_logs = $wpdb->prefix . 'simple_dte_logs';
         $sql_logs = "CREATE TABLE IF NOT EXISTS $table_logs (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             fecha_hora datetime NOT NULL,
@@ -169,7 +169,6 @@ class Simple_DTE_Plugin {
 
         // Crear tabla de folios
         $table_folios = $wpdb->prefix . 'simple_dte_folios';
-
         $sql_folios = "CREATE TABLE IF NOT EXISTS $table_folios (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             tipo_dte int(11) NOT NULL,
@@ -184,36 +183,104 @@ class Simple_DTE_Plugin {
             KEY estado (estado)
         ) $charset_collate;";
 
+        // Crear tabla de cola de reintentos
+        $table_queue = $wpdb->prefix . 'simple_dte_queue';
+        $sql_queue = "CREATE TABLE IF NOT EXISTS $table_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            order_id bigint(20) NOT NULL,
+            dte_tipo varchar(10) NOT NULL,
+            dte_data longtext NOT NULL,
+            error_message text,
+            retry_count int(11) DEFAULT 0,
+            max_retries int(11) DEFAULT 5,
+            status varchar(20) DEFAULT 'pending',
+            created_at datetime NOT NULL,
+            next_retry_at datetime,
+            updated_at datetime,
+            completed_at datetime,
+            PRIMARY KEY (id),
+            KEY order_id (order_id),
+            KEY status (status),
+            KEY next_retry_at (next_retry_at)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_logs);
         dbDelta($sql_folios);
+        dbDelta($sql_queue);
 
-        // Opciones por defecto
+        // Crear directorio de uploads
+        $upload_dir = wp_upload_dir();
+        $simple_dte_dir = $upload_dir['basedir'] . '/simple-dte/';
+
+        if (!file_exists($simple_dte_dir)) {
+            wp_mkdir_p($simple_dte_dir);
+
+            // Crear subdirectorios
+            wp_mkdir_p($simple_dte_dir . 'certs/');
+            wp_mkdir_p($simple_dte_dir . 'caf/');
+            wp_mkdir_p($simple_dte_dir . 'pdf/');
+            wp_mkdir_p($simple_dte_dir . 'xml/');
+            wp_mkdir_p($simple_dte_dir . 'rcv/');
+
+            // Proteger con .htaccess
+            $htaccess_content = "Order deny,allow\nDeny from all";
+            file_put_contents($simple_dte_dir . '.htaccess', $htaccess_content);
+            file_put_contents($simple_dte_dir . 'index.php', '<?php // Silence is golden');
+        }
+
+        // Opciones por defecto - Configuración general
         add_option('simple_dte_ambiente', 'certificacion');
         add_option('simple_dte_api_key', '');
         add_option('simple_dte_debug', true);
-        add_option('simple_dte_rvd_auto', false); // RVD automático desactivado por defecto
+        add_option('simple_dte_rvd_auto', false);
 
-        // Datos del emisor
+        // Opciones por defecto - Datos del emisor
         add_option('simple_dte_rut_emisor', '');
         add_option('simple_dte_razon_social', '');
         add_option('simple_dte_giro', '');
         add_option('simple_dte_direccion', '');
         add_option('simple_dte_comuna', '');
+        add_option('simple_dte_logo_url', '');
 
-        // Certificado
+        // Opciones por defecto - Certificado
         add_option('simple_dte_cert_rut', '');
         add_option('simple_dte_cert_password', '');
         add_option('simple_dte_cert_path', '');
 
-        Simple_DTE_Logger::info('Plugin Simple DTE activado');
+        // Opciones por defecto - Boletas de Ajuste
+        add_option('simple_dte_auto_ajuste_enabled', false);
+
+        // Registrar versión instalada
+        add_option('simple_dte_version', SIMPLE_DTE_VERSION);
+
+        // Log de activación (se guardará cuando Logger esté disponible)
+        error_log('Simple DTE: Plugin activado - versión ' . SIMPLE_DTE_VERSION);
     }
 
     /**
      * Desactivación del plugin
+     *
+     * IMPORTANTE: Al desactivar NO se eliminan datos
+     * Los datos solo se eliminan al DESINSTALAR el plugin
      */
     public function deactivate() {
-        Simple_DTE_Logger::info('Plugin Simple DTE desactivado');
+        // Limpiar cron jobs programados
+        $crons = array(
+            'simple_dte_process_queue',
+            'simple_dte_envio_resumen_diario',
+            'simple_dte_envio_rvd',
+        );
+
+        foreach ($crons as $cron) {
+            $timestamp = wp_next_scheduled($cron);
+            if ($timestamp) {
+                wp_unschedule_event($timestamp, $cron);
+            }
+            wp_clear_scheduled_hook($cron);
+        }
+
+        error_log('Simple DTE: Plugin desactivado - Los datos se conservan. Para eliminar completamente, desinstale el plugin.');
     }
 
     /**

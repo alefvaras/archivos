@@ -4,8 +4,10 @@ Sistema completo de facturación electrónica chilena integrado con WooCommerce.
 
 ## Características
 
-- ✅ Generación automática de Boletas Electrónicas (DTE Tipo 39)
-- ✅ Notas de Crédito automáticas
+- ✅ Generación automática de Boletas Electrónicas (DTE Tipo 39 y 41)
+- ✅ **Boletas de Ajuste** según normativa SII (NO Notas de Crédito)
+- ✅ **Resumen Diario (RCOF)** automático con folios anulados
+- ✅ **Libro de Ventas (RCV)** mensual
 - ✅ Compatible con HPOS (High-Performance Order Storage)
 - ✅ Integración con Simple API (SII Chile)
 - ✅ PDF profesional con timbre PDF417
@@ -14,6 +16,7 @@ Sistema completo de facturación electrónica chilena integrado con WooCommerce.
 - ✅ Cola de reintentos automáticos
 - ✅ Exportación de reportes
 - ✅ Dashboard de estadísticas
+- ✅ **100% Plug and Play** - Se limpia todo al desinstalar
 
 ## Configuración del Logo
 
@@ -35,6 +38,34 @@ Sistema completo de facturación electrónica chilena integrado con WooCommerce.
 
 El logo aparecerá automáticamente en todas las boletas electrónicas generadas, centrado en la parte superior del documento.
 
+## Boletas de Ajuste (Anulación)
+
+⚠️ **IMPORTANTE:** Según normativa del SII, las boletas electrónicas **NO pueden usar Notas de Crédito**. Para anular o corregir boletas, se utilizan **Boletas de Ajuste**.
+
+### ¿Cómo funciona?
+
+1. **Configuración:** Ve a *WooCommerce → Simple DTE → Configuración → Boletas de Ajuste*
+2. **Activar:** Marca "Anular boletas automáticamente"
+3. **Funcionamiento:**
+   - Cuando creas un **reembolso total** en WooCommerce, la boleta se marca automáticamente como anulada
+   - Los reembolsos parciales NO anulan la boleta (se reportan manualmente)
+   - La boleta anulada se reporta en el **Resumen Diario (RCOF)** del día siguiente como "folio anulado"
+
+### ¿Qué NO hace?
+
+- ❌ **NO cancela retroactivamente** la boleta en el SII (una vez emitida, no se puede revocar)
+- ❌ **NO genera un documento de anulación** separado
+- ✅ **Solo registra internamente** que el folio fue anulado para efectos contables
+- ✅ **Reporta correctamente** en el Resumen Diario al SII
+
+### Resumen Diario Automático
+
+El plugin genera y envía automáticamente el Resumen Diario (RCOF) al SII todos los días a las 23:00, incluyendo:
+- Folios emitidos
+- Folios anulados (Boletas de Ajuste)
+- Rangos de folios utilizados
+- Totales de ventas
+
 ## Certificado Digital
 
 - RUT: 16694181-4
@@ -49,6 +80,28 @@ El logo aparecerá automáticamente en todas las boletas electrónicas generadas
 5. Configurar datos del emisor
 6. Subir certificado digital (.pfx)
 7. **(Opcional)** Subir logo de la empresa
+
+### ✨ 100% Plug and Play
+
+**Al activar el plugin se crea automáticamente:**
+- 3 tablas en base de datos (logs, folios, cola)
+- Directorio protegido `/wp-uploads/simple-dte/` con subdirectorios
+- Todas las opciones de configuración
+- Cron jobs para envío automático de resúmenes
+
+**Al desactivar:**
+- Se limpian los cron jobs
+- ⚠️ **Los datos NO se eliminan** (se conservan para reactivación)
+
+**Al desinstalar el plugin completamente:**
+- ✅ Se eliminan todas las tablas de base de datos
+- ✅ Se eliminan todos los archivos subidos (XMLs, PDFs, CAFs, certificados)
+- ✅ Se eliminan todas las opciones de configuración
+- ✅ Se eliminan todos los meta datos de órdenes
+- ✅ Se eliminan todos los cron jobs
+- ✅ Se limpia toda la cache y transients
+
+**El plugin deja tu WordPress exactamente como estaba antes de instalarlo.**
 
 ## Suite de Tests
 
