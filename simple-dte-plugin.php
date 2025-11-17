@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Simple DTE - Integración Simple API
  * Plugin URI: https://tu-sitio.cl
- * Description: Plugin de integración con Simple API para emisión de Boletas, Notas de Crédito, consultas y RCV (Ambiente de Pruebas)
+ * Description: Plugin de integración con Simple API para emisión de Boletas Electrónicas, consultas y RCV (Ambiente de Pruebas)
  * Version: 1.0.0
  * Author: Tu Nombre
  * Author URI: https://tu-sitio.cl
@@ -95,7 +95,6 @@ class Simple_DTE_Plugin {
 
         // Generadores
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-boleta-generator.php';
-        require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-nota-credito-generator.php';
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-sobre-generator.php';
 
         // Consultas
@@ -140,9 +139,6 @@ class Simple_DTE_Plugin {
 
         // Inicializar RVD
         Simple_DTE_RVD::init();
-
-        // Inicializar Notas de Crédito
-        Simple_DTE_Nota_Credito_Generator::init();
 
         // Log de inicialización
         Simple_DTE_Logger::info('Simple DTE Plugin inicializado correctamente');

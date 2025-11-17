@@ -27,7 +27,6 @@ class Simple_DTE_Admin {
 
         // AJAX handlers
         add_action('wp_ajax_simple_dte_generar_boleta', array(__CLASS__, 'ajax_generar_boleta'));
-        add_action('wp_ajax_simple_dte_generar_nc', array(__CLASS__, 'ajax_generar_nc'));
         add_action('wp_ajax_simple_dte_upload_caf', array(__CLASS__, 'ajax_upload_caf'));
     }
 
@@ -175,8 +174,8 @@ class Simple_DTE_Admin {
 
                 if ($tipo == 39) {
                     echo '<br><small>Boleta</small>';
-                } elseif ($tipo == 61) {
-                    echo '<br><small>N/C</small>';
+                } elseif ($tipo == 41) {
+                    echo '<br><small>Boleta Exenta</small>';
                 }
             } else {
                 echo '<span style="color: gray;">—</span>';
@@ -213,40 +212,6 @@ class Simple_DTE_Admin {
         }
 
         $resultado = Simple_DTE_Boleta_Generator::generar_desde_orden($order, $opciones);
-
-        if (is_wp_error($resultado)) {
-            wp_send_json_error(array('message' => $resultado->get_error_message()));
-        }
-
-        wp_send_json_success($resultado);
-    }
-
-    /**
-     * AJAX: Generar nota de crédito
-     */
-    public static function ajax_generar_nc() {
-        check_ajax_referer('simple_dte_nonce', 'nonce');
-
-        if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
-        }
-
-        $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
-        $codigo_ref = isset($_POST['codigo_ref']) ? intval($_POST['codigo_ref']) : 1;
-
-        if (!$order_id) {
-            wp_send_json_error(array('message' => __('ID de orden requerido', 'simple-dte')));
-        }
-
-        $order = wc_get_order($order_id);
-
-        if (!$order) {
-            wp_send_json_error(array('message' => __('Orden no encontrada', 'simple-dte')));
-        }
-
-        $resultado = Simple_DTE_Nota_Credito_Generator::generar_desde_orden($order, null, array(
-            'codigo_ref' => $codigo_ref
-        ));
 
         if (is_wp_error($resultado)) {
             wp_send_json_error(array('message' => $resultado->get_error_message()));

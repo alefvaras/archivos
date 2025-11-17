@@ -238,9 +238,6 @@ class Simple_DTE_Queue {
                 case '41': // Boleta Exenta
                     $resultado = self::retry_boleta($order, $dte_data);
                     break;
-                case '61': // Nota de Crédito
-                    $resultado = self::retry_nota_credito($order, $dte_data);
-                    break;
                 default:
                     throw new Exception('Tipo de DTE no soportado: ' . $item->dte_tipo);
             }
@@ -353,28 +350,6 @@ class Simple_DTE_Queue {
             if (method_exists($plugin, 'generar_boleta_desde_orden')) {
                 return $plugin->generar_boleta_desde_orden($order->get_id());
             }
-        }
-
-        return false;
-    }
-
-    /**
-     * Reintentar generación de nota de crédito
-     */
-    private static function retry_nota_credito($order, $dte_data) {
-        // Verificar que no se haya generado ya
-        $ya_generada = $order->get_meta('_simple_dte_nc_generada');
-        if ($ya_generada === 'yes') {
-            Simple_DTE_Logger::info('NC ya fue generada, removiendo de cola', [
-                'order_id' => $order->get_id(),
-                'operacion' => 'queue_retry_skip'
-            ]);
-            return true;
-        }
-
-        // Intentar generar NC usando la clase NC
-        if (class_exists('Simple_DTE_Nota_Credito_Generator')) {
-            return Simple_DTE_Nota_Credito_Generator::generar_desde_orden($order->get_id(), $dte_data);
         }
 
         return false;

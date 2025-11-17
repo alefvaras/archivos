@@ -20,12 +20,13 @@ class Simple_DTE_RCV {
         add_action('wp_ajax_simple_dte_generar_resumen_diario', array(__CLASS__, 'ajax_generar_resumen_diario'));
         add_action('wp_ajax_simple_dte_enviar_rcv', array(__CLASS__, 'ajax_enviar_rcv'));
 
-        // Cron para envío automático de resumen diario
+        // Hook para Boletas de Ajuste (anulación automática en refunds)
+        add_action('woocommerce_order_refunded', array(__CLASS__, 'handle_boleta_ajuste'), 10, 2);
+
+        // Cron para envío automático del resumen diario
         add_action('simple_dte_envio_resumen_diario', array(__CLASS__, 'cron_enviar_resumen_diario'));
 
-        // Programar cron si no existe
         if (!wp_next_scheduled('simple_dte_envio_resumen_diario')) {
-            // Programar para las 23:00 todos los días
             wp_schedule_event(strtotime('today 23:00'), 'daily', 'simple_dte_envio_resumen_diario');
         }
     }
@@ -491,5 +492,328 @@ class Simple_DTE_RCV {
         }
 
         wp_send_json_success($resultado);
+    }
+
+    /**
+     * Manejar Boleta de Ajuste (anulación) cuando se crea un refund
+     *
+     * @param int $order_id ID de la orden
+     * @param int $refund_id ID del refund
+     */
+    public static function handle_boleta_ajuste($order_id, $refund_id) {
+        // Verificar si la funcionalidad está habilitada
+        if (!get_option('simple_dte_auto_ajuste_enabled')) {
+            return;
+        }
+
+        $order = wc_get_order($order_id);
+        $refund = wc_get_order($refund_id);
+
+        if (!$order || !$refund) {
+            Simple_DTE_Logger::error('Orden o refund no encontrado para Boleta de Ajuste', array(
+                'order_id' => $order_id,
+                'refund_id' => $refund_id
+            ));
+            return;
+        }
+
+        // Verificar que la orden tenga boleta generada
+        if ($order->get_meta('_simple_dte_generada') !== 'yes') {
+            return;
+        }
+
+        // Verificar que sea un refund total
+        $monto_refund = abs((float) $refund->get_total());
+        $monto_orden = (float) $order->get_total();
+
+        if ($monto_refund != $monto_orden) {
+            Simple_DTE_Logger::info('Refund parcial, no se marca boleta como anulada', array(
+                'order_id' => $order_id,
+                'monto_refund' => $monto_refund,
+                'monto_orden' => $monto_orden
+            ));
+
+            $order->add_order_note(
+                __('Reembolso parcial creado. Las boletas solo se anulan en reembolsos totales.', 'simple-dte')
+            );
+
+            return;
+        }
+
+        // Verificar que no esté ya anulada
+        if ($order->get_meta('_simple_dte_anulada') === 'yes') {
+            return;
+        }
+
+        // Marcar boleta como anulada
+        $order->update_meta_data('_simple_dte_anulada', 'yes');
+        $order->update_meta_data('_simple_dte_fecha_anulacion', current_time('mysql'));
+        $order->save();
+
+        Simple_DTE_Logger::info('Boleta marcada como anulada (Boleta de Ajuste)', array(
+            'order_id' => $order_id,
+            'folio' => $order->get_meta('_simple_dte_folio')
+        ), $order_id);
+
+        $order->add_order_note(
+            sprintf(
+                __('✓ Boleta N° %d marcada como anulada. Se reportará en el Resumen Diario como folio anulado.', 'simple-dte'),
+                $order->get_meta('_simple_dte_folio')
+            )
+        );
+    }
+
+    /**
+     * Generar Resumen Diario (RCOF)
+     *
+     * @param string $fecha Fecha (AAAA-MM-DD)
+     * @return array|WP_Error Resultado de la generación
+     */
+    public static function generar_resumen_diario($fecha = null) {
+        if (empty($fecha)) {
+            $fecha = date('Y-m-d', strtotime('yesterday'));
+        }
+
+        Simple_DTE_Logger::info('Generando Resumen Diario (RCOF)', array('fecha' => $fecha));
+
+        // Obtener boletas del día (tipo 39 y 41)
+        $orders = wc_get_orders(array(
+            'limit' => -1,
+            'date_created' => $fecha . '...' . $fecha . ' 23:59:59',
+            'meta_query' => array(
+                array(
+                    'key' => '_simple_dte_generada',
+                    'value' => 'yes'
+                ),
+                array(
+                    'key' => '_simple_dte_tipo',
+                    'value' => array('39', '41'),
+                    'compare' => 'IN'
+                )
+            )
+        ));
+
+        if (empty($orders)) {
+            return new WP_Error('no_boletas', __('No hay boletas para el día seleccionado', 'simple-dte'));
+        }
+
+        // Construir XML del resumen diario
+        $xml = self::build_resumen_diario_xml($orders, $fecha);
+
+        if (is_wp_error($xml)) {
+            return $xml;
+        }
+
+        Simple_DTE_Logger::info('Resumen Diario generado', array(
+            'cantidad_boletas' => count($orders),
+            'fecha' => $fecha
+        ));
+
+        return array(
+            'success' => true,
+            'xml' => $xml,
+            'cantidad_documentos' => count($orders),
+            'fecha' => $fecha,
+            'mensaje' => sprintf(__('Resumen Diario generado con %d boletas', 'simple-dte'), count($orders))
+        );
+    }
+
+    /**
+     * Construir XML del Resumen Diario (ConsumoFolios)
+     */
+    private static function build_resumen_diario_xml($orders, $fecha) {
+        $rut_emisor = get_option('simple_dte_rut_emisor', '');
+        $razon_social = get_option('simple_dte_razon_social', '');
+
+        // Agrupar por tipo de DTE
+        $boletas_por_tipo = array();
+        $folios_anulados_por_tipo = array();
+
+        foreach ($orders as $order) {
+            $tipo_dte = (int) $order->get_meta('_simple_dte_tipo');
+            $folio = (int) $order->get_meta('_simple_dte_folio');
+            $anulada = $order->get_meta('_simple_dte_anulada') === 'yes';
+
+            if (!isset($boletas_por_tipo[$tipo_dte])) {
+                $boletas_por_tipo[$tipo_dte] = array();
+                $folios_anulados_por_tipo[$tipo_dte] = array();
+            }
+
+            if ($anulada) {
+                $folios_anulados_por_tipo[$tipo_dte][] = $folio;
+            } else {
+                $total = (float) $order->get_total();
+                $neto = Simple_DTE_Helpers::calcular_neto($total);
+                $iva = $total - $neto;
+
+                $boletas_por_tipo[$tipo_dte][] = array(
+                    'folio' => $folio,
+                    'neto' => $neto,
+                    'iva' => $iva,
+                    'total' => $total
+                );
+            }
+        }
+
+        // Construir XML
+        $xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n";
+        $xml .= '<ConsumoFolios xmlns="http://www.sii.cl/SiiDte" version="1.0">' . "\n";
+        $xml .= '<DocumentoConsumoFolios ID="Consumo">' . "\n";
+
+        // Carátula
+        $xml .= '<Caratula>' . "\n";
+        $xml .= '<RutEmisor>' . esc_html($rut_emisor) . '</RutEmisor>' . "\n";
+        $xml .= '<RutEnvia>' . esc_html($rut_emisor) . '</RutEnvia>' . "\n";
+        $xml .= '<FchResol>2025-11-16</FchResol>' . "\n";
+        $xml .= '<NroResol>0</NroResol>' . "\n";
+        $xml .= '<FchInicio>' . $fecha . '</FchInicio>' . "\n";
+        $xml .= '<FchFinal>' . $fecha . '</FchFinal>' . "\n";
+        $xml .= '<SecEnvio>1</SecEnvio>' . "\n";
+        $xml .= '</Caratula>' . "\n";
+
+        // Resumen por tipo
+        foreach ($boletas_por_tipo as $tipo => $boletas) {
+            if (empty($boletas) && empty($folios_anulados_por_tipo[$tipo])) {
+                continue;
+            }
+
+            // Ordenar por folio
+            usort($boletas, function($a, $b) {
+                return $a['folio'] - $b['folio'];
+            });
+
+            // Calcular totales
+            $total_neto = 0;
+            $total_iva = 0;
+            $total_monto = 0;
+
+            foreach ($boletas as $boleta) {
+                $total_neto += $boleta['neto'];
+                $total_iva += $boleta['iva'];
+                $total_monto += $boleta['total'];
+            }
+
+            $xml .= '<Resumen>' . "\n";
+            $xml .= '<TipoDocumento>' . $tipo . '</TipoDocumento>' . "\n";
+            $xml .= '<MntNeto>' . round($total_neto) . '</MntNeto>' . "\n";
+            $xml .= '<MntIva>' . round($total_iva) . '</MntIva>' . "\n";
+            $xml .= '<TasaIVA>19</TasaIVA>' . "\n";
+            $xml .= '<MntTotal>' . round($total_monto) . '</MntTotal>' . "\n";
+            $xml .= '<FoliosEmitidos>' . count($boletas) . '</FoliosEmitidos>' . "\n";
+            $xml .= '<FoliosAnulados>' . count($folios_anulados_por_tipo[$tipo]) . '</FoliosAnulados>' . "\n";
+
+            // Rangos utilizados
+            if (!empty($boletas)) {
+                $folio_inicial = $boletas[0]['folio'];
+                $folio_final = $boletas[count($boletas) - 1]['folio'];
+
+                $xml .= '<RangoUtilizados>' . "\n";
+                $xml .= '<Inicial>' . $folio_inicial . '</Inicial>' . "\n";
+                $xml .= '<Final>' . $folio_final . '</Final>' . "\n";
+                $xml .= '</RangoUtilizados>' . "\n";
+            }
+
+            // Folios anulados
+            if (!empty($folios_anulados_por_tipo[$tipo])) {
+                sort($folios_anulados_por_tipo[$tipo]);
+
+                // Agrupar folios consecutivos en rangos
+                $rangos = self::agrupar_folios_en_rangos($folios_anulados_por_tipo[$tipo]);
+
+                foreach ($rangos as $rango) {
+                    $xml .= '<RangoAnulados>' . "\n";
+                    $xml .= '<Inicial>' . $rango['inicial'] . '</Inicial>' . "\n";
+                    $xml .= '<Final>' . $rango['final'] . '</Final>' . "\n";
+                    $xml .= '</RangoAnulados>' . "\n";
+                }
+            }
+
+            $xml .= '</Resumen>' . "\n";
+        }
+
+        $xml .= '</DocumentoConsumoFolios>' . "\n";
+        $xml .= '</ConsumoFolios>';
+
+        return $xml;
+    }
+
+    /**
+     * Agrupar folios consecutivos en rangos
+     *
+     * @param array $folios Array de números de folio ordenados
+     * @return array Array de rangos con 'inicial' y 'final'
+     */
+    private static function agrupar_folios_en_rangos($folios) {
+        $rangos = array();
+        $inicio = null;
+        $anterior = null;
+
+        foreach ($folios as $folio) {
+            if ($inicio === null) {
+                $inicio = $folio;
+                $anterior = $folio;
+                continue;
+            }
+
+            if ($folio == $anterior + 1) {
+                $anterior = $folio;
+            } else {
+                $rangos[] = array('inicial' => $inicio, 'final' => $anterior);
+                $inicio = $folio;
+                $anterior = $folio;
+            }
+        }
+
+        if ($inicio !== null) {
+            $rangos[] = array('inicial' => $inicio, 'final' => $anterior);
+        }
+
+        return $rangos;
+    }
+
+    /**
+     * AJAX: Generar Resumen Diario
+     */
+    public static function ajax_generar_resumen_diario() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $fecha = isset($_POST['fecha']) ? sanitize_text_field($_POST['fecha']) : date('Y-m-d', strtotime('yesterday'));
+
+        $resultado = self::generar_resumen_diario($fecha);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success($resultado);
+    }
+
+    /**
+     * Cron job: Enviar resumen diario automáticamente
+     */
+    public static function cron_enviar_resumen_diario() {
+        $fecha_ayer = date('Y-m-d', strtotime('yesterday'));
+
+        Simple_DTE_Logger::info('Ejecutando cron de envío de resumen diario', array('fecha' => $fecha_ayer));
+
+        $resultado = self::generar_resumen_diario($fecha_ayer);
+
+        if (is_wp_error($resultado)) {
+            Simple_DTE_Logger::warning('No se pudo generar resumen diario en cron', array(
+                'error' => $resultado->get_error_message()
+            ));
+            return;
+        }
+
+        Simple_DTE_Logger::info('Resumen diario generado exitosamente por cron', array(
+            'cantidad_boletas' => $resultado['cantidad_documentos'],
+            'fecha' => $fecha_ayer
+        ));
+
+        // Aquí se podría agregar envío automático al SII si se implementa la integración
     }
 }

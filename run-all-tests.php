@@ -9,7 +9,6 @@ require_once(__DIR__ . '/lib/VisualHelper.php');
 require_once(__DIR__ . '/tests/UnitTest.php');
 require_once(__DIR__ . '/tests/IntegrationTest.php');
 require_once(__DIR__ . '/tests/EndToEndTest.php');
-require_once(__DIR__ . '/tests/NotaCreditoTest.php');
 require_once(__DIR__ . '/tests/RUTValidationTest.php');
 require_once(__DIR__ . '/tests/HPOSCompatibilityTest.php');
 require_once(__DIR__ . '/tests/SecurityTest.php');
@@ -113,35 +112,12 @@ $results['e2e'] = [
 echo "═══════════════════════════════════════════════════════════════\n";
 
 // ============================================================================
-// 4. TESTS DE NOTAS DE CRÉDITO
+// 4. TESTS DE VALIDACIÓN DE RUT
 // ============================================================================
 
 echo "\n";
 echo "┌─────────────────────────────────────────────────────────────┐\n";
-echo "│ 4️⃣  TESTS DE NOTAS DE CRÉDITO AUTOMÁTICAS                  │\n";
-echo "└─────────────────────────────────────────────────────────────┘\n";
-echo "\n";
-
-$nc_test = new NotaCreditoTest();
-ob_start();
-$nc_success = $nc_test->run();
-$nc_output = ob_get_clean();
-echo $nc_output;
-
-$results['nota_credito'] = [
-    'success' => $nc_success,
-    'output' => $nc_output
-];
-
-echo "═══════════════════════════════════════════════════════════════\n";
-
-// ============================================================================
-// 5. TESTS DE VALIDACIÓN DE RUT
-// ============================================================================
-
-echo "\n";
-echo "┌─────────────────────────────────────────────────────────────┐\n";
-echo "│ 5️⃣  TESTS DE VALIDACIÓN DE RUT CHILENO                     │\n";
+echo "│ 4️⃣  TESTS DE VALIDACIÓN DE RUT CHILENO                     │\n";
 echo "└─────────────────────────────────────────────────────────────┘\n";
 echo "\n";
 
@@ -159,12 +135,12 @@ $results['rut'] = [
 echo "═══════════════════════════════════════════════════════════════\n";
 
 // ============================================================================
-// 6. TESTS DE COMPATIBILIDAD HPOS
+// 5. TESTS DE COMPATIBILIDAD HPOS
 // ============================================================================
 
 echo "\n";
 echo "┌─────────────────────────────────────────────────────────────┐\n";
-echo "│ 6️⃣  TESTS DE COMPATIBILIDAD HPOS                           │\n";
+echo "│ 5️⃣  TESTS DE COMPATIBILIDAD HPOS                           │\n";
 echo "└─────────────────────────────────────────────────────────────┘\n";
 echo "\n";
 
@@ -182,12 +158,12 @@ $results['hpos'] = [
 echo "═══════════════════════════════════════════════════════════════\n";
 
 // ============================================================================
-// 7. TESTS DE SEGURIDAD
+// 6. TESTS DE SEGURIDAD
 // ============================================================================
 
 echo "\n";
 echo "┌─────────────────────────────────────────────────────────────┐\n";
-echo "│ 7️⃣  TESTS DE SEGURIDAD                                      │\n";
+echo "│ 6️⃣  TESTS DE SEGURIDAD                                      │\n";
 echo "└─────────────────────────────────────────────────────────────┘\n";
 echo "\n";
 
@@ -220,7 +196,6 @@ echo "\n";
 $all_success = $results['unit']['success'] &&
                $results['integration']['success'] &&
                $results['e2e']['success'] &&
-               $results['nota_credito']['success'] &&
                $results['rut']['success'] &&
                $results['hpos']['success'] &&
                $results['security']['success'];
@@ -229,7 +204,6 @@ $v->lista([
     ['texto' => 'Tests Unitarios', 'valor' => $results['unit']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests Integración', 'valor' => $results['integration']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests End-to-End', 'valor' => $results['e2e']['success'] ? '✅ PASS' : '❌ FAIL'],
-    ['texto' => 'Tests Notas Crédito', 'valor' => $results['nota_credito']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests RUT', 'valor' => $results['rut']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests HPOS', 'valor' => $results['hpos']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests Seguridad', 'valor' => $results['security']['success'] ? '✅ PASS' : '❌ FAIL'],

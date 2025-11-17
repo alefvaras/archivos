@@ -52,10 +52,8 @@ class Simple_DTE_Settings {
         register_setting('simple_dte_settings', 'simple_dte_cert_password');
         register_setting('simple_dte_settings', 'simple_dte_cert_path');
 
-        // Sección Notas de Crédito
-        register_setting('simple_dte_settings', 'simple_dte_auto_nc_enabled');
-        register_setting('simple_dte_settings', 'simple_dte_auto_nc_tipo');
-        register_setting('simple_dte_settings', 'simple_dte_auto_nc_validar_monto');
+        // Sección Boletas de Ajuste
+        register_setting('simple_dte_settings', 'simple_dte_auto_ajuste_enabled');
     }
 
     /**
@@ -304,53 +302,27 @@ class Simple_DTE_Settings {
 
                 <tr>
                     <th colspan="2">
-                        <h2><?php _e('Notas de Crédito Automáticas', 'simple-dte'); ?></h2>
+                        <h2><?php _e('Boletas de Ajuste', 'simple-dte'); ?></h2>
                     </th>
                 </tr>
                 <tr>
-                    <th scope="row">
-                        <label for="simple_dte_auto_nc_enabled"><?php _e('Generar NC automáticamente', 'simple-dte'); ?></label>
-                    </th>
-                    <td>
-                        <input type="checkbox" name="simple_dte_auto_nc_enabled" id="simple_dte_auto_nc_enabled" value="1"
-                               <?php checked(get_option('simple_dte_auto_nc_enabled'), 1); ?> />
-                        <?php _e('Generar Nota de Crédito automáticamente cuando se cree un reembolso (refund)', 'simple-dte'); ?>
-                        <p class="description">
-                            <?php _e('Si está desactivado, se podrá generar NC manualmente desde el metabox de la orden.', 'simple-dte'); ?>
-                        </p>
+                    <td colspan="2">
+                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 10px 0;">
+                            <p style="margin: 0;"><strong><?php _e('ℹ️ Importante:', 'simple-dte'); ?></strong> <?php _e('Según normativa SII, las boletas NO usan Notas de Crédito. Para anular o corregir boletas se usan Boletas de Ajuste, que se reportan en el Resumen Diario como folios anulados.', 'simple-dte'); ?></p>
+                        </div>
                     </td>
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="simple_dte_auto_nc_tipo"><?php _e('Tipo de NC por defecto', 'simple-dte'); ?></label>
+                        <label for="simple_dte_auto_ajuste_enabled"><?php _e('Anular boletas automáticamente', 'simple-dte'); ?></label>
                     </th>
                     <td>
-                        <select name="simple_dte_auto_nc_tipo" id="simple_dte_auto_nc_tipo">
-                            <option value="1" <?php selected(get_option('simple_dte_auto_nc_tipo', '1'), '1'); ?>>
-                                <?php _e('1 - Anulación (recomendado)', 'simple-dte'); ?>
-                            </option>
-                            <option value="2" <?php selected(get_option('simple_dte_auto_nc_tipo'), '2'); ?>>
-                                <?php _e('2 - Corregir texto', 'simple-dte'); ?>
-                            </option>
-                            <option value="3" <?php selected(get_option('simple_dte_auto_nc_tipo'), '3'); ?>>
-                                <?php _e('3 - Corregir montos', 'simple-dte'); ?>
-                            </option>
-                        </select>
+                        <input type="checkbox" name="simple_dte_auto_ajuste_enabled" id="simple_dte_auto_ajuste_enabled" value="1"
+                               <?php checked(get_option('simple_dte_auto_ajuste_enabled'), 1); ?> />
+                        <?php _e('Registrar boleta como anulada cuando se cree un reembolso total en WooCommerce', 'simple-dte'); ?>
                         <p class="description">
-                            <?php _e('Código de referencia que se usará para las NC automáticas', 'simple-dte'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="simple_dte_auto_nc_validar_monto"><?php _e('Validar monto completo', 'simple-dte'); ?></label>
-                    </th>
-                    <td>
-                        <input type="checkbox" name="simple_dte_auto_nc_validar_monto" id="simple_dte_auto_nc_validar_monto" value="1"
-                               <?php checked(get_option('simple_dte_auto_nc_validar_monto'), 1); ?> />
-                        <?php _e('Solo generar NC si el monto del reembolso es igual al total de la boleta/factura', 'simple-dte'); ?>
-                        <p class="description">
-                            <?php _e('Si está activado, las NC solo se generarán para reembolsos totales (anulación completa). Los reembolsos parciales requerirán generación manual.', 'simple-dte'); ?>
+                            <?php _e('Las boletas anuladas se reportarán automáticamente en el Resumen Diario (RCOF) del día siguiente.', 'simple-dte'); ?><br>
+                            <?php _e('<strong>Nota:</strong> Las boletas electrónicas NO se pueden anular una vez emitidas al SII. Este registro es solo para efectos contables internos y reporte en el resumen diario.', 'simple-dte'); ?>
                         </p>
                     </td>
                 </tr>
