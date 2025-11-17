@@ -230,6 +230,210 @@ class Simple_DTE_API_Client {
     }
 
     /**
+     * Solicitar folios/CAF a SimpleAPI
+     *
+     * @param int $tipo_dte Tipo de DTE (39, 33, 61, etc.)
+     * @param int $cantidad Cantidad de folios a solicitar
+     * @param string $cert_path Ruta al certificado PFX
+     * @return array|WP_Error Respuesta de la API con el CAF
+     */
+    public static function solicitar_folios($tipo_dte, $cantidad, $cert_path) {
+        Simple_DTE_Logger::info('API: Solicitando folios a SimpleAPI', array(
+            'tipo_dte' => $tipo_dte,
+            'cantidad' => $cantidad
+        ));
+
+        // Validar certificado
+        if (!file_exists($cert_path)) {
+            return new WP_Error('cert_not_found', __('Certificado digital no encontrado', 'simple-dte'));
+        }
+
+        // Validar cantidad
+        if ($cantidad < 1 || $cantidad > 1000) {
+            return new WP_Error('invalid_quantity', __('La cantidad debe estar entre 1 y 1000 folios', 'simple-dte'));
+        }
+
+        // Construir URL - endpoint de SimpleAPI Folios
+        $url = Simple_DTE_Helpers::get_api_base_url() . '/api/v1/folios/solicitar';
+
+        // Crear boundary para multipart
+        $boundary = wp_generate_password(24, false, false);
+
+        // Datos de la solicitud
+        $solicitud_data = array(
+            'TipoDTE' => $tipo_dte,
+            'Cantidad' => $cantidad
+        );
+
+        // Construir payload multipart
+        $payload = self::build_multipart_payload(array(
+            array(
+                'name' => 'input',
+                'content' => wp_json_encode($solicitud_data, JSON_UNESCAPED_UNICODE),
+                'type' => 'application/json'
+            ),
+            array(
+                'name' => 'certificado',
+                'filename' => basename($cert_path),
+                'filepath' => $cert_path,
+                'type' => 'application/x-pkcs12'
+            )
+        ), $boundary);
+
+        $request_options = array(
+            'headers' => array_merge(
+                self::get_auth_headers(),
+                array('Content-Type' => 'multipart/form-data; boundary=' . $boundary)
+            ),
+            'body' => $payload,
+            'timeout' => 120 // Solicitar folios puede tomar más tiempo
+        );
+
+        // Ejecutar con reintentos automáticos
+        $response = self::execute_with_retries('POST', $url, $request_options, array(
+            'operation' => 'solicitar_folios',
+            'tipo_dte' => $tipo_dte,
+            'cantidad' => $cantidad
+        ));
+
+        if (is_wp_error($response)) {
+            Simple_DTE_Logger::error('Error al solicitar folios', array(
+                'error' => $response->get_error_message()
+            ));
+            return $response;
+        }
+
+        // Si la respuesta contiene XML del CAF, procesarlo y guardarlo
+        if (isset($response['caf_xml']) || isset($response['xml'])) {
+            $caf_xml = isset($response['caf_xml']) ? $response['caf_xml'] : $response['xml'];
+
+            // Guardar el CAF
+            $save_result = self::save_caf_from_api($caf_xml, $tipo_dte);
+
+            if (is_wp_error($save_result)) {
+                Simple_DTE_Logger::error('Error al guardar CAF recibido', array(
+                    'error' => $save_result->get_error_message()
+                ));
+                return $save_result;
+            }
+
+            Simple_DTE_Logger::info('Folios solicitados y guardados exitosamente', array(
+                'tipo_dte' => $tipo_dte,
+                'cantidad' => $cantidad,
+                'folio_desde' => $save_result['folio_desde'],
+                'folio_hasta' => $save_result['folio_hasta']
+            ));
+
+            return array(
+                'success' => true,
+                'message' => sprintf(
+                    __('Se solicitaron %d folios exitosamente (Rango: %d - %d)', 'simple-dte'),
+                    $cantidad,
+                    $save_result['folio_desde'],
+                    $save_result['folio_hasta']
+                ),
+                'caf_id' => $save_result['caf_id'],
+                'folio_desde' => $save_result['folio_desde'],
+                'folio_hasta' => $save_result['folio_hasta'],
+                'cantidad' => $cantidad
+            );
+        }
+
+        // Si no hay XML en la respuesta, retornar error
+        return new WP_Error(
+            'invalid_response',
+            __('La respuesta de la API no contiene un CAF válido', 'simple-dte'),
+            $response
+        );
+    }
+
+    /**
+     * Guardar CAF recibido desde la API
+     *
+     * @param string $caf_xml XML del CAF
+     * @param int $tipo_dte Tipo de DTE
+     * @return array|WP_Error Información del CAF guardado
+     */
+    private static function save_caf_from_api($caf_xml, $tipo_dte) {
+        // Crear directorio seguro
+        $upload_dir = Simple_DTE_Helpers::create_secure_upload_dir();
+
+        $filename = 'caf-' . $tipo_dte . '-' . time() . '.xml';
+        $filepath = $upload_dir . $filename;
+
+        // Guardar archivo XML
+        if (file_put_contents($filepath, $caf_xml) === false) {
+            return new WP_Error('save_failed', __('No se pudo guardar el archivo CAF', 'simple-dte'));
+        }
+
+        @chmod($filepath, 0600);
+
+        // Parsear XML
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($caf_xml);
+
+        if ($xml === false) {
+            @unlink($filepath);
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            return new WP_Error('invalid_xml', __('El CAF recibido no es un XML válido', 'simple-dte'));
+        }
+
+        // Extraer datos del CAF
+        $da = $xml->CAF->DA;
+
+        if (!$da) {
+            @unlink($filepath);
+            return new WP_Error('invalid_caf', __('Estructura de CAF inválida', 'simple-dte'));
+        }
+
+        $tipo = (int) ((string) $da->TD);
+        $folio_desde = (int) ((string) $da->RNG->D);
+        $folio_hasta = (int) ((string) $da->RNG->H);
+
+        // Validar que el tipo coincida
+        if ($tipo !== $tipo_dte) {
+            @unlink($filepath);
+            return new WP_Error(
+                'tipo_mismatch',
+                sprintf(
+                    __('El CAF es de tipo %d pero se esperaba tipo %d', 'simple-dte'),
+                    $tipo,
+                    $tipo_dte
+                )
+            );
+        }
+
+        // Guardar en base de datos
+        global $wpdb;
+        $table = $wpdb->prefix . 'simple_dte_folios';
+
+        $wpdb->insert($table, array(
+            'tipo_dte' => $tipo,
+            'folio_desde' => $folio_desde,
+            'folio_hasta' => $folio_hasta,
+            'folio_actual' => $folio_desde,
+            'xml_path' => $filepath,
+            'estado' => 'activo',
+            'created_at' => current_time('mysql')
+        ));
+
+        $caf_id = $wpdb->insert_id;
+
+        if (!$caf_id) {
+            @unlink($filepath);
+            return new WP_Error('db_error', __('Error al guardar el CAF en la base de datos', 'simple-dte'));
+        }
+
+        return array(
+            'caf_id' => $caf_id,
+            'folio_desde' => $folio_desde,
+            'folio_hasta' => $folio_hasta,
+            'filepath' => $filepath
+        );
+    }
+
+    /**
      * Construir payload multipart
      *
      * @param array $parts Array de partes del multipart

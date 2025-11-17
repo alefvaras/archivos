@@ -81,7 +81,52 @@ if (!defined('ABSPATH')) {
                 <p><?php _e('No hay CAFs cargados', 'simple-dte'); ?></p>
             <?php endif; ?>
 
-            <h3><?php _e('Cargar nuevo CAF', 'simple-dte'); ?></h3>
+            <h3><?php _e('Solicitar Folios a SimpleAPI', 'simple-dte'); ?></h3>
+            <div style="background: #f0f6fc; border-left: 4px solid #0073aa; padding: 15px; margin-bottom: 15px;">
+                <p style="margin: 0;"><strong>ℹ️ <?php _e('Solicitud Automática de Folios', 'simple-dte'); ?></strong></p>
+                <p style="margin: 5px 0 0 0; font-size: 13px;">
+                    <?php _e('Solicita folios CAF directamente al SII a través de SimpleAPI sin necesidad de descargar archivos manualmente.', 'simple-dte'); ?>
+                </p>
+            </div>
+            <form id="solicitar-folios-form">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="tipo_dte_solicitar"><?php _e('Tipo de DTE:', 'simple-dte'); ?></label>
+                        </th>
+                        <td>
+                            <select name="tipo_dte" id="tipo_dte_solicitar" required>
+                                <option value=""><?php _e('Seleccione...', 'simple-dte'); ?></option>
+                                <option value="39"><?php _e('39 - Boleta Electrónica', 'simple-dte'); ?></option>
+                                <option value="41"><?php _e('41 - Boleta Exenta', 'simple-dte'); ?></option>
+                                <option value="33"><?php _e('33 - Factura Electrónica', 'simple-dte'); ?></option>
+                                <option value="61"><?php _e('61 - Nota de Crédito', 'simple-dte'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="cantidad_folios"><?php _e('Cantidad de Folios:', 'simple-dte'); ?></label>
+                        </th>
+                        <td>
+                            <input type="number" name="cantidad" id="cantidad_folios" min="1" max="1000" value="50" required />
+                            <p class="description"><?php _e('Entre 1 y 1000 folios', 'simple-dte'); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                <p>
+                    <button type="submit" class="button button-primary" id="btn-solicitar-folios">
+                        <?php _e('Solicitar Folios', 'simple-dte'); ?>
+                    </button>
+                    <span id="solicitar-folios-spinner" class="spinner" style="display: none; float: none; margin: 0 10px;"></span>
+                </p>
+                <div id="solicitar-folios-result" style="margin-top: 10px;"></div>
+            </form>
+
+            <hr style="margin: 30px 0;">
+
+            <h3><?php _e('Cargar CAF Manualmente', 'simple-dte'); ?></h3>
+            <p class="description"><?php _e('Si ya tienes un archivo CAF descargado del SII, puedes cargarlo aquí.', 'simple-dte'); ?></p>
             <form id="upload-caf-form" enctype="multipart/form-data">
                 <p>
                     <label for="tipo_dte_caf"><?php _e('Tipo de DTE:', 'simple-dte'); ?></label>

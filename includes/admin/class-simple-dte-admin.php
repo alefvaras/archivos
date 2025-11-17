@@ -28,6 +28,7 @@ class Simple_DTE_Admin {
         // AJAX handlers
         add_action('wp_ajax_simple_dte_generar_boleta', array(__CLASS__, 'ajax_generar_boleta'));
         add_action('wp_ajax_simple_dte_upload_caf', array(__CLASS__, 'ajax_upload_caf'));
+        add_action('wp_ajax_simple_dte_solicitar_folios', array(__CLASS__, 'ajax_solicitar_folios'));
     }
 
     /**
@@ -320,5 +321,43 @@ class Simple_DTE_Admin {
             'folio_hasta' => $folio_hasta,
             'mensaje' => sprintf(__('CAF cargado: Folios %d a %d', 'simple-dte'), $folio_desde, $folio_hasta)
         );
+    }
+
+    /**
+     * AJAX: Solicitar folios a SimpleAPI
+     */
+    public static function ajax_solicitar_folios() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $tipo_dte = isset($_POST['tipo_dte']) ? intval($_POST['tipo_dte']) : 0;
+        $cantidad = isset($_POST['cantidad']) ? intval($_POST['cantidad']) : 0;
+
+        if (!$tipo_dte) {
+            wp_send_json_error(array('message' => __('Tipo de DTE requerido', 'simple-dte')));
+        }
+
+        if (!$cantidad || $cantidad < 1 || $cantidad > 1000) {
+            wp_send_json_error(array('message' => __('Cantidad inválida (debe estar entre 1 y 1000)', 'simple-dte')));
+        }
+
+        // Obtener ruta del certificado
+        $cert_path = get_option('simple_dte_cert_path', '');
+
+        if (empty($cert_path) || !file_exists($cert_path)) {
+            wp_send_json_error(array('message' => __('Certificado digital no configurado o no encontrado', 'simple-dte')));
+        }
+
+        // Solicitar folios a la API
+        $resultado = Simple_DTE_API_Client::solicitar_folios($tipo_dte, $cantidad, $cert_path);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success($resultado);
     }
 }

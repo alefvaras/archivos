@@ -119,6 +119,69 @@
         });
     });
 
+    // Solicitar Folios a SimpleAPI
+    $('#solicitar-folios-form').on('submit', function(e) {
+        e.preventDefault();
+
+        var tipoDte = $('#tipo_dte_solicitar').val();
+        var cantidad = $('#cantidad_folios').val();
+        var $btn = $('#btn-solicitar-folios');
+        var $spinner = $('#solicitar-folios-spinner');
+        var $result = $('#solicitar-folios-result');
+        var btnText = $btn.text();
+
+        if (!tipoDte || !cantidad) {
+            $result.html('<div class="notice notice-error"><p>Por favor complete todos los campos</p></div>');
+            return;
+        }
+
+        if (cantidad < 1 || cantidad > 1000) {
+            $result.html('<div class="notice notice-error"><p>La cantidad debe estar entre 1 y 1000 folios</p></div>');
+            return;
+        }
+
+        if (!confirm('¿Solicitar ' + cantidad + ' folios a SimpleAPI? Esta operación puede tardar unos momentos.')) {
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Solicitando...');
+        $spinner.css('display', 'inline-block');
+        $result.html('');
+
+        $.ajax({
+            url: simpleDTE.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'simple_dte_solicitar_folios',
+                nonce: simpleDTE.nonce,
+                tipo_dte: tipoDte,
+                cantidad: cantidad
+            },
+            success: function(response) {
+                if (response.success) {
+                    $result.html(
+                        '<div class="notice notice-success"><p><strong>✓ ' + response.data.message + '</strong></p>' +
+                        '<p>Rango de folios: <strong>' + response.data.folio_desde + '</strong> a <strong>' + response.data.folio_hasta + '</strong></p></div>'
+                    );
+
+                    // Recargar la página después de 2 segundos para mostrar los nuevos folios
+                    setTimeout(function() {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    $result.html('<div class="notice notice-error"><p><strong>Error:</strong> ' + response.data.message + '</p></div>');
+                    $btn.prop('disabled', false).text(btnText);
+                    $spinner.hide();
+                }
+            },
+            error: function(xhr, status, error) {
+                $result.html('<div class="notice notice-error"><p><strong>Error de conexión:</strong> No se pudo completar la solicitud. Por favor intente nuevamente.</p></div>');
+                $btn.prop('disabled', false).text(btnText);
+                $spinner.hide();
+            }
+        });
+    });
+
     // Consultar estado
     $('#form-consultar-estado').on('submit', function(e) {
         e.preventDefault();
