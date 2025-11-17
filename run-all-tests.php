@@ -9,6 +9,10 @@ require_once(__DIR__ . '/lib/VisualHelper.php');
 require_once(__DIR__ . '/tests/UnitTest.php');
 require_once(__DIR__ . '/tests/IntegrationTest.php');
 require_once(__DIR__ . '/tests/EndToEndTest.php');
+require_once(__DIR__ . '/tests/NotaCreditoTest.php');
+require_once(__DIR__ . '/tests/RUTValidationTest.php');
+require_once(__DIR__ . '/tests/HPOSCompatibilityTest.php');
+require_once(__DIR__ . '/tests/SecurityTest.php');
 
 $v = VisualHelper::getInstance();
 $v->limpiar();
@@ -109,6 +113,98 @@ $results['e2e'] = [
 echo "═══════════════════════════════════════════════════════════════\n";
 
 // ============================================================================
+// 4. TESTS DE NOTAS DE CRÉDITO
+// ============================================================================
+
+echo "\n";
+echo "┌─────────────────────────────────────────────────────────────┐\n";
+echo "│ 4️⃣  TESTS DE NOTAS DE CRÉDITO AUTOMÁTICAS                  │\n";
+echo "└─────────────────────────────────────────────────────────────┘\n";
+echo "\n";
+
+$nc_test = new NotaCreditoTest();
+ob_start();
+$nc_success = $nc_test->run();
+$nc_output = ob_get_clean();
+echo $nc_output;
+
+$results['nota_credito'] = [
+    'success' => $nc_success,
+    'output' => $nc_output
+];
+
+echo "═══════════════════════════════════════════════════════════════\n";
+
+// ============================================================================
+// 5. TESTS DE VALIDACIÓN DE RUT
+// ============================================================================
+
+echo "\n";
+echo "┌─────────────────────────────────────────────────────────────┐\n";
+echo "│ 5️⃣  TESTS DE VALIDACIÓN DE RUT CHILENO                     │\n";
+echo "└─────────────────────────────────────────────────────────────┘\n";
+echo "\n";
+
+$rut_test = new RUTValidationTest();
+ob_start();
+$rut_success = $rut_test->run();
+$rut_output = ob_get_clean();
+echo $rut_output;
+
+$results['rut'] = [
+    'success' => $rut_success,
+    'output' => $rut_output
+];
+
+echo "═══════════════════════════════════════════════════════════════\n";
+
+// ============================================================================
+// 6. TESTS DE COMPATIBILIDAD HPOS
+// ============================================================================
+
+echo "\n";
+echo "┌─────────────────────────────────────────────────────────────┐\n";
+echo "│ 6️⃣  TESTS DE COMPATIBILIDAD HPOS                           │\n";
+echo "└─────────────────────────────────────────────────────────────┘\n";
+echo "\n";
+
+$hpos_test = new HPOSCompatibilityTest();
+ob_start();
+$hpos_success = $hpos_test->run();
+$hpos_output = ob_get_clean();
+echo $hpos_output;
+
+$results['hpos'] = [
+    'success' => $hpos_success,
+    'output' => $hpos_output
+];
+
+echo "═══════════════════════════════════════════════════════════════\n";
+
+// ============================================================================
+// 7. TESTS DE SEGURIDAD
+// ============================================================================
+
+echo "\n";
+echo "┌─────────────────────────────────────────────────────────────┐\n";
+echo "│ 7️⃣  TESTS DE SEGURIDAD                                      │\n";
+echo "└─────────────────────────────────────────────────────────────┘\n";
+echo "\n";
+
+$security_test = new SecurityTest();
+ob_start();
+$security_success = $security_test->run();
+$security_output = ob_get_clean();
+echo $security_output;
+
+$results['security'] = [
+    'success' => $security_success,
+    'output' => $security_output
+];
+
+echo "═══════════════════════════════════════════════════════════════\n";
+
+// ============================================================================
 // RESUMEN FINAL
 // ============================================================================
 
@@ -123,12 +219,20 @@ echo "\n";
 
 $all_success = $results['unit']['success'] &&
                $results['integration']['success'] &&
-               $results['e2e']['success'];
+               $results['e2e']['success'] &&
+               $results['nota_credito']['success'] &&
+               $results['rut']['success'] &&
+               $results['hpos']['success'] &&
+               $results['security']['success'];
 
 $v->lista([
     ['texto' => 'Tests Unitarios', 'valor' => $results['unit']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests Integración', 'valor' => $results['integration']['success'] ? '✅ PASS' : '❌ FAIL'],
     ['texto' => 'Tests End-to-End', 'valor' => $results['e2e']['success'] ? '✅ PASS' : '❌ FAIL'],
+    ['texto' => 'Tests Notas Crédito', 'valor' => $results['nota_credito']['success'] ? '✅ PASS' : '❌ FAIL'],
+    ['texto' => 'Tests RUT', 'valor' => $results['rut']['success'] ? '✅ PASS' : '❌ FAIL'],
+    ['texto' => 'Tests HPOS', 'valor' => $results['hpos']['success'] ? '✅ PASS' : '❌ FAIL'],
+    ['texto' => 'Tests Seguridad', 'valor' => $results['security']['success'] ? '✅ PASS' : '❌ FAIL'],
 ]);
 
 echo "\n";
