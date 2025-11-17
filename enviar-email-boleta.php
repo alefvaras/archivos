@@ -33,9 +33,9 @@ echo "════════════════════════�
 $smtp_config = [
     'host' => 'smtp.hostinger.com',  // SMTP de Hostinger
     'port' => 587,                    // Puerto TLS
-    'username' => 'boletas@akibara.cl', // Email de envío (actualizar si es diferente)
-    'password' => '',                  // DEBE configurarse
-    'from_email' => 'boletas@akibara.cl',
+    'username' => 'contacto@akibara.cl', // Email de envío
+    'password' => '',                  // DEBE configurarse (obtener de Hostinger)
+    'from_email' => 'contacto@akibara.cl',
     'from_name' => 'AKIBARA SPA - Boletas Electrónicas',
     'encryption' => 'tls',            // TLS para puerto 587
 ];
