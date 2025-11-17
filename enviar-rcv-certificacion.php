@@ -16,11 +16,23 @@ $v = VisualHelper::getInstance();
 $v->limpiar();
 
 echo "\n";
-$v->titulo("Envío de RCV al SII - Ambiente de Certificación");
+$v->titulo("Envío de RCV al SII - Sistema Configurable");
 echo "\n";
 
 // ============================================================================
-// CONFIGURACIÓN
+// CARGAR CONFIGURACIÓN
+// ============================================================================
+
+$config_file = __DIR__ . '/config-rcv.php';
+if (!file_exists($config_file)) {
+    $v->mensaje('error', 'Archivo de configuración no encontrado: config-rcv.php');
+    exit(1);
+}
+
+$config = require $config_file;
+
+// ============================================================================
+// CONFIGURACIÓN DE API Y CERTIFICADO
 // ============================================================================
 
 define('API_BASE', 'https://api.simple.cl');
@@ -31,21 +43,51 @@ define('RUT_EMISOR', '76063822-6');
 define('AMBIENTE', 0); // 0 = Certificación, 1 = Producción
 
 // ============================================================================
-// VALIDAR AMBIENTE
+// VALIDAR CONFIGURACIÓN
 // ============================================================================
 
-if (AMBIENTE !== 0) {
-    $v->mensaje('warning', '⚠️  ADVERTENCIA: Este script solo debe usarse en CERTIFICACIÓN');
+$ambiente_nombre = AMBIENTE === 0 ? 'certificacion' : 'produccion';
+
+// Verificar si el envío está habilitado globalmente
+if (!$config['envio_habilitado']) {
+    $v->mensaje('warning', '⚠️  Envío de RCV DESHABILITADO en configuración');
     echo "\n";
-    echo "  Desde 2024, el RCV de boletas NO es obligatorio en PRODUCCIÓN.\n";
-    echo "  Solo se requiere en CERTIFICACIÓN para pasar las pruebas del SII.\n";
+    echo "  El envío de RCV está deshabilitado en config-rcv.php\n";
+    echo "  Solo se generará el XML para respaldo.\n";
     echo "\n";
-    echo "  Si realmente quieres enviar en producción, cambia AMBIENTE = 1 en el código.\n";
-    echo "\n";
-    exit(1);
+    $envio_permitido = false;
+} else {
+    // Verificar si el ambiente actual está permitido
+    if (!in_array($ambiente_nombre, $config['ambientes_permitidos'])) {
+        $v->mensaje('warning', '⚠️  Envío NO permitido en ambiente: ' . strtoupper($ambiente_nombre));
+        echo "\n";
+        echo "  El ambiente '$ambiente_nombre' no está en la lista de ambientes permitidos.\n";
+        echo "  Ambientes permitidos: " . implode(', ', $config['ambientes_permitidos']) . "\n";
+        echo "  Solo se generará el XML para respaldo.\n";
+        echo "\n";
+        $envio_permitido = false;
+    } else {
+        $envio_permitido = true;
+
+        // Mostrar advertencia si estamos en producción
+        if (AMBIENTE === 1 && $config['alertas']['advertir_produccion']) {
+            $v->mensaje('warning', '⚠️  ADVERTENCIA: Estás en PRODUCCIÓN');
+            echo "\n";
+            echo "  Desde 2024, el RCV de boletas NO es obligatorio en PRODUCCIÓN.\n";
+            echo "  El SII obtiene la información directamente de cada boleta enviada.\n";
+            echo "\n";
+            echo "  ¿Estás seguro de que quieres continuar?\n";
+            echo "  Presiona Ctrl+C para cancelar o Enter para continuar...\n";
+            fgets(STDIN);
+        }
+    }
 }
 
-$v->mensaje('info', 'Ambiente: CERTIFICACIÓN (correcto para RCV de boletas)');
+$v->lista([
+    ['texto' => 'Ambiente', 'valor' => strtoupper($ambiente_nombre)],
+    ['texto' => 'Envío habilitado', 'valor' => $config['envio_habilitado'] ? 'SÍ' : 'NO'],
+    ['texto' => 'Envío permitido', 'valor' => $envio_permitido ? 'SÍ' : 'NO'],
+]);
 echo "\n";
 
 // ============================================================================
@@ -236,8 +278,26 @@ $v->lista([
 echo "\n";
 
 // ============================================================================
-// ENVIAR RCV AL SII VÍA SIMPLE API
+// ENVIAR RCV AL SII VÍA SIMPLE API (SI ESTÁ PERMITIDO)
 // ============================================================================
+
+if (!$envio_permitido) {
+    $v->mensaje('info', '✓ XML generado pero NO se enviará al SII (según configuración)');
+    echo "\n";
+    echo "  Archivo: $rcv_filename\n";
+    echo "  Para enviar al SII, edita config-rcv.php\n";
+    echo "\n";
+
+    // Guardar log si está habilitado
+    if ($config['log']['habilitar_log']) {
+        $log_entry = date('Y-m-d H:i:s') . " - RCV generado pero NO enviado - Período: $periodo_tributario - Docs: " . count($documentos) . " - Archivo: $rcv_filename\n";
+        file_put_contents($config['log']['archivo_log'], $log_entry, FILE_APPEND);
+    }
+
+    echo "Proceso completado (solo generación de XML) - " . date('Y-m-d H:i:s') . "\n";
+    echo "\n";
+    exit(0);
+}
 
 $v->subtitulo("Enviando RCV al SII");
 
