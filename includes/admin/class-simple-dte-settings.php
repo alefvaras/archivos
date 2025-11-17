@@ -54,6 +54,19 @@ class Simple_DTE_Settings {
 
         // Sección Boletas de Ajuste
         register_setting('simple_dte_settings', 'simple_dte_auto_ajuste_enabled');
+
+        // Sección Email
+        register_setting('simple_dte_settings', 'simple_dte_auto_email_enabled');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_enabled');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_host');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_port');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_secure');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_auth');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_username');
+        register_setting('simple_dte_settings', 'simple_dte_smtp_password');
+
+        // AJAX para prueba de email
+        add_action('wp_ajax_simple_dte_test_email', array(__CLASS__, 'ajax_test_email'));
     }
 
     /**
@@ -305,16 +318,24 @@ class Simple_DTE_Settings {
                         <h2><?php _e('Boletas de Ajuste', 'simple-dte'); ?></h2>
                     </th>
                 </tr>
+
+                <!-- Sección Boletas de Ajuste -->
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('⚙️ Boletas de Ajuste', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
                 <tr>
                     <td colspan="2">
-                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 10px 0;">
-                            <p style="margin: 0;"><strong><?php _e('ℹ️ Importante:', 'simple-dte'); ?></strong> <?php _e('Según normativa SII, las boletas NO usan Notas de Crédito. Para anular o corregir boletas se usan Boletas de Ajuste, que se reportan en el Resumen Diario como folios anulados.', 'simple-dte'); ?></p>
+                        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin-bottom: 15px;">
+                            <p><strong>ℹ️ Importante:</strong> Según normativa SII, las boletas NO usan Notas de Crédito.
+                            Para anular o corregir boletas se usan Boletas de Ajuste, que se reportan en el Resumen Diario como folios anulados.</p>
                         </div>
                     </td>
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="simple_dte_auto_ajuste_enabled"><?php _e('Anular boletas automáticamente', 'simple-dte'); ?></label>
+                        <label for="simple_dte_auto_ajuste_enabled"><?php _e('Anular automáticamente', 'simple-dte'); ?></label>
                     </th>
                     <td>
                         <input type="checkbox" name="simple_dte_auto_ajuste_enabled" id="simple_dte_auto_ajuste_enabled" value="1"
@@ -322,8 +343,162 @@ class Simple_DTE_Settings {
                         <?php _e('Registrar boleta como anulada cuando se cree un reembolso total en WooCommerce', 'simple-dte'); ?>
                         <p class="description">
                             <?php _e('Las boletas anuladas se reportarán automáticamente en el Resumen Diario (RCOF) del día siguiente.', 'simple-dte'); ?><br>
-                            <?php _e('<strong>Nota:</strong> Las boletas electrónicas NO se pueden anular una vez emitidas al SII. Este registro es solo para efectos contables internos y reporte en el resumen diario.', 'simple-dte'); ?>
+                            <strong>Nota:</strong> Las boletas electrónicas NO se pueden anular una vez emitidas al SII.
+                            Este registro es solo para efectos contables internos y reporte en el resumen diario.
                         </p>
+                    </td>
+                </tr>
+
+                <!-- Sección Email -->
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('📧 Envío de Boletas por Email', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_auto_email_enabled"><?php _e('Enviar automáticamente', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="checkbox" name="simple_dte_auto_email_enabled" id="simple_dte_auto_email_enabled" value="1"
+                               <?php checked(get_option('simple_dte_auto_email_enabled'), 1); ?> />
+                        <?php _e('Enviar boleta por email al cliente después de generarla', 'simple-dte'); ?>
+                        <p class="description">
+                            <?php _e('El PDF de la boleta se adjuntará automáticamente al email del cliente', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_enabled"><?php _e('Usar SMTP', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="checkbox" name="simple_dte_smtp_enabled" id="simple_dte_smtp_enabled" value="1"
+                               <?php checked(get_option('simple_dte_smtp_enabled'), 1); ?>
+                               onclick="document.getElementById('smtp-config').style.display = this.checked ? 'table-row-group' : 'none';" />
+                        <?php _e('Usar servidor SMTP personalizado para enviar emails', 'simple-dte'); ?>
+                        <p class="description">
+                            <?php _e('Recomendado para mayor confiabilidad. Compatible con Gmail, Outlook, SendGrid, etc.', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Configuración SMTP (oculta si no está habilitado) -->
+            <table class="form-table" id="smtp-config" style="display: <?php echo get_option('simple_dte_smtp_enabled') ? 'table-row-group' : 'none'; ?>;">
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_host"><?php _e('Servidor SMTP', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_smtp_host" id="simple_dte_smtp_host"
+                               value="<?php echo esc_attr(get_option('simple_dte_smtp_host', 'smtp.gmail.com')); ?>"
+                               class="regular-text" placeholder="smtp.gmail.com" />
+                        <p class="description">
+                            <?php _e('Gmail: smtp.gmail.com | Outlook: smtp.office365.com | Yahoo: smtp.mail.yahoo.com', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_port"><?php _e('Puerto', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="number" name="simple_dte_smtp_port" id="simple_dte_smtp_port"
+                               value="<?php echo esc_attr(get_option('simple_dte_smtp_port', '587')); ?>"
+                               class="small-text" />
+                        <p class="description">
+                            <?php _e('TLS: 587 | SSL: 465', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_secure"><?php _e('Encriptación', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <select name="simple_dte_smtp_secure" id="simple_dte_smtp_secure">
+                            <option value="tls" <?php selected(get_option('simple_dte_smtp_secure', 'tls'), 'tls'); ?>>TLS</option>
+                            <option value="ssl" <?php selected(get_option('simple_dte_smtp_secure'), 'ssl'); ?>>SSL</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_username"><?php _e('Usuario SMTP', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text" name="simple_dte_smtp_username" id="simple_dte_smtp_username"
+                               value="<?php echo esc_attr(get_option('simple_dte_smtp_username', '')); ?>"
+                               class="regular-text" placeholder="tu-email@gmail.com" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_smtp_password"><?php _e('Contraseña SMTP', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="password" name="simple_dte_smtp_password" id="simple_dte_smtp_password"
+                               value="<?php echo esc_attr(get_option('simple_dte_smtp_password', '')); ?>"
+                               class="regular-text" />
+                        <p class="description">
+                            <?php _e('Gmail requiere "Contraseña de aplicación" si tienes 2FA activado', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <?php _e('Probar configuración', 'simple-dte'); ?>
+                    </th>
+                    <td>
+                        <input type="email" id="test_email_address" class="regular-text"
+                               value="<?php echo esc_attr(get_option('admin_email')); ?>"
+                               placeholder="tu-email@example.com" />
+                        <button type="button" id="test-email-btn" class="button button-secondary">
+                            <?php _e('Enviar Email de Prueba', 'simple-dte'); ?>
+                        </button>
+                        <div id="test-email-result" style="margin-top: 10px;"></div>
+                        <script>
+                        jQuery(document).ready(function($) {
+                            $('#test-email-btn').on('click', function() {
+                                var btn = $(this);
+                                var email = $('#test_email_address').val();
+                                var result = $('#test-email-result');
+
+                                if (!email) {
+                                    result.html('<div class="notice notice-error inline"><p>Por favor ingresa un email</p></div>');
+                                    return;
+                                }
+
+                                btn.prop('disabled', true).text('Enviando...');
+                                result.html('<div class="notice notice-info inline"><p>Enviando email de prueba...</p></div>');
+
+                                $.ajax({
+                                    url: ajaxurl,
+                                    method: 'POST',
+                                    data: {
+                                        action: 'simple_dte_test_email',
+                                        nonce: '<?php echo wp_create_nonce('simple_dte_nonce'); ?>',
+                                        email: email
+                                    },
+                                    success: function(response) {
+                                        if (response.success) {
+                                            result.html('<div class="notice notice-success inline"><p>' + response.data.message + '</p></div>');
+                                        } else {
+                                            result.html('<div class="notice notice-error inline"><p>' + response.data.message + '</p></div>');
+                                        }
+                                    },
+                                    error: function() {
+                                        result.html('<div class="notice notice-error inline"><p>Error de conexión</p></div>');
+                                    },
+                                    complete: function() {
+                                        btn.prop('disabled', false).text('Enviar Email de Prueba');
+                                    }
+                                });
+                            });
+                        });
+                        </script>
+>>>>>>> a07f560 (Feature: Sistema completo de envío de boletas por email con SMTP)
                     </td>
                 </tr>
             </table>
@@ -366,5 +541,32 @@ class Simple_DTE_Settings {
         } else {
             add_settings_error('simple_dte_settings', 'cert_upload', __('Error al cargar certificado', 'simple-dte'));
         }
+    }
+
+    /**
+     * AJAX: Enviar email de prueba
+     */
+    public static function ajax_test_email() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+
+        if (empty($email)) {
+            wp_send_json_error(array('message' => __('Email requerido', 'simple-dte')));
+        }
+
+        $resultado = Simple_DTE_Email::enviar_email_prueba($email);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success(array(
+            'message' => sprintf(__('✅ Email de prueba enviado exitosamente a %s', 'simple-dte'), $email)
+        ));
     }
 }

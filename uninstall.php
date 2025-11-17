@@ -56,6 +56,19 @@ function simple_dte_delete_options() {
 
         // Boletas de Ajuste
         'simple_dte_auto_ajuste_enabled',
+
+        // Email y SMTP
+        'simple_dte_auto_email_enabled',
+        'simple_dte_smtp_enabled',
+        'simple_dte_smtp_host',
+        'simple_dte_smtp_port',
+        'simple_dte_smtp_secure',
+        'simple_dte_smtp_auth',
+        'simple_dte_smtp_username',
+        'simple_dte_smtp_password',
+
+        // Versión
+        'simple_dte_version',
     );
 
     foreach ($options as $option) {
@@ -78,6 +91,8 @@ function simple_dte_delete_order_meta() {
         '_simple_dte_pdf_path',
         '_simple_dte_anulada',
         '_simple_dte_fecha_anulacion',
+        '_simple_dte_email_enviado',
+        '_simple_dte_email_fecha',
         '_billing_rut',
     );
 

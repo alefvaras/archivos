@@ -80,6 +80,23 @@ class Simple_DTE_Boleta_Generator {
             'order_id' => $order->get_id()
         ), $order->get_id());
 
+        // Enviar por email si está habilitado
+        $auto_email = get_option('simple_dte_auto_email_enabled', false);
+        if ($auto_email) {
+            // Obtener ruta del PDF si existe
+            $pdf_path = $order->get_meta('_simple_dte_pdf_path');
+            if (!empty($pdf_path) && file_exists($pdf_path)) {
+                $envio_email = Simple_DTE_Email::enviar_boleta_cliente($order, $pdf_path);
+                if (is_wp_error($envio_email)) {
+                    Simple_DTE_Logger::warning('No se pudo enviar boleta por email', array(
+                        'order_id' => $order->get_id(),
+                        'folio' => $folio,
+                        'error' => $envio_email->get_error_message()
+                    ), $order->get_id());
+                }
+            }
+        }
+
         return array(
             'success' => true,
             'folio' => $folio,

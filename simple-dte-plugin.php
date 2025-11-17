@@ -97,6 +97,9 @@ class Simple_DTE_Plugin {
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-boleta-generator.php';
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-sobre-generator.php';
 
+        // Email
+        require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-email.php';
+
         // Consultas
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-consultas.php';
 
@@ -139,6 +142,9 @@ class Simple_DTE_Plugin {
 
         // Inicializar RVD
         Simple_DTE_RVD::init();
+
+        // Configurar SMTP si está habilitado
+        Simple_DTE_Email::configure_smtp();
 
         // Log de inicialización
         Simple_DTE_Logger::info('Simple DTE Plugin inicializado correctamente');
