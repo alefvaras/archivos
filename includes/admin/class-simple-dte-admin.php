@@ -303,9 +303,9 @@ class Simple_DTE_Admin {
             'folio_desde' => $folio_desde,
             'folio_hasta' => $folio_hasta,
             'folio_actual' => $folio_desde - 1,
-            'fecha_carga' => current_time('mysql'),
-            'archivo_caf' => $filepath,
-            'estado' => 'activo'
+            'xml_path' => $filepath,
+            'estado' => 'activo',
+            'created_at' => current_time('mysql')
         ), array('%d', '%d', '%d', '%d', '%s', '%s', '%s'));
 
         Simple_DTE_Logger::info('CAF cargado', array(

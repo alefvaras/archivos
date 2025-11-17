@@ -158,19 +158,32 @@ class Simple_DTE_Plugin {
 
         $charset_collate = $wpdb->get_charset_collate();
 
+        // Verificar si es actualización
+        $installed_version = get_option('simple_dte_version', '0.0.0');
+        if (version_compare($installed_version, SIMPLE_DTE_VERSION, '<')) {
+            $this->upgrade_database($installed_version);
+        }
+
         // Crear tabla de logs
         $table_logs = $wpdb->prefix . 'simple_dte_logs';
         $sql_logs = "CREATE TABLE IF NOT EXISTS $table_logs (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            fecha_hora datetime NOT NULL,
             nivel varchar(20) NOT NULL,
             mensaje text NOT NULL,
             contexto longtext,
             order_id bigint(20),
+            rut varchar(20),
+            folio varchar(20),
+            tipo_dte varchar(10),
+            operacion varchar(50),
+            usuario_id bigint(20),
+            fecha_creacion datetime NOT NULL,
             PRIMARY KEY (id),
-            KEY fecha_hora (fecha_hora),
             KEY nivel (nivel),
-            KEY order_id (order_id)
+            KEY order_id (order_id),
+            KEY rut (rut),
+            KEY folio (folio),
+            KEY fecha_creacion (fecha_creacion)
         ) $charset_collate;";
 
         // Crear tabla de folios
@@ -181,12 +194,13 @@ class Simple_DTE_Plugin {
             folio_desde int(11) NOT NULL,
             folio_hasta int(11) NOT NULL,
             folio_actual int(11) NOT NULL,
-            fecha_carga datetime NOT NULL,
-            archivo_caf text NOT NULL,
+            xml_path text NOT NULL,
             estado varchar(20) DEFAULT 'activo',
+            created_at datetime NOT NULL,
             PRIMARY KEY (id),
             KEY tipo_dte (tipo_dte),
-            KEY estado (estado)
+            KEY estado (estado),
+            KEY created_at (created_at)
         ) $charset_collate;";
 
         // Crear tabla de cola de reintentos
@@ -258,10 +272,98 @@ class Simple_DTE_Plugin {
         add_option('simple_dte_auto_ajuste_enabled', false);
 
         // Registrar versión instalada
-        add_option('simple_dte_version', SIMPLE_DTE_VERSION);
+        update_option('simple_dte_version', SIMPLE_DTE_VERSION);
 
         // Log de activación (se guardará cuando Logger esté disponible)
         error_log('Simple DTE: Plugin activado - versión ' . SIMPLE_DTE_VERSION);
+    }
+
+    /**
+     * Actualizar base de datos
+     *
+     * @param string $from_version Versión desde la que se actualiza
+     */
+    private function upgrade_database($from_version) {
+        global $wpdb;
+
+        error_log("Simple DTE: Actualizando base de datos desde versión {$from_version} a " . SIMPLE_DTE_VERSION);
+
+        // Aquí se pueden agregar migraciones específicas por versión
+        // Por ejemplo:
+        // if (version_compare($from_version, '1.1.0', '<')) {
+        //     // Migración para versión 1.1.0
+        // }
+
+        // Por ahora, simplemente recrear las tablas con dbDelta
+        // que automáticamente agrega columnas faltantes sin eliminar datos
+        $charset_collate = $wpdb->get_charset_collate();
+
+        // Actualizar tabla de logs
+        $table_logs = $wpdb->prefix . 'simple_dte_logs';
+        $sql_logs = "CREATE TABLE $table_logs (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            nivel varchar(20) NOT NULL,
+            mensaje text NOT NULL,
+            contexto longtext,
+            order_id bigint(20),
+            rut varchar(20),
+            folio varchar(20),
+            tipo_dte varchar(10),
+            operacion varchar(50),
+            usuario_id bigint(20),
+            fecha_creacion datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY nivel (nivel),
+            KEY order_id (order_id),
+            KEY rut (rut),
+            KEY folio (folio),
+            KEY fecha_creacion (fecha_creacion)
+        ) $charset_collate;";
+
+        // Actualizar tabla de folios
+        $table_folios = $wpdb->prefix . 'simple_dte_folios';
+        $sql_folios = "CREATE TABLE $table_folios (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            tipo_dte int(11) NOT NULL,
+            folio_desde int(11) NOT NULL,
+            folio_hasta int(11) NOT NULL,
+            folio_actual int(11) NOT NULL,
+            xml_path text NOT NULL,
+            estado varchar(20) DEFAULT 'activo',
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY tipo_dte (tipo_dte),
+            KEY estado (estado),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+
+        // Actualizar tabla de cola
+        $table_queue = $wpdb->prefix . 'simple_dte_queue';
+        $sql_queue = "CREATE TABLE $table_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            order_id bigint(20) NOT NULL,
+            dte_tipo varchar(10) NOT NULL,
+            dte_data longtext NOT NULL,
+            error_message text,
+            retry_count int(11) DEFAULT 0,
+            max_retries int(11) DEFAULT 5,
+            status varchar(20) DEFAULT 'pending',
+            created_at datetime NOT NULL,
+            next_retry_at datetime,
+            updated_at datetime,
+            completed_at datetime,
+            PRIMARY KEY (id),
+            KEY order_id (order_id),
+            KEY status (status),
+            KEY next_retry_at (next_retry_at)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql_logs);
+        dbDelta($sql_folios);
+        dbDelta($sql_queue);
+
+        error_log("Simple DTE: Base de datos actualizada correctamente");
     }
 
     /**

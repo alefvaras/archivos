@@ -117,14 +117,21 @@ function simple_dte_delete_order_meta() {
 }
 
 /**
- * Eliminar archivos subidos
+ * Eliminar archivos subidos y logs
  */
 function simple_dte_delete_uploaded_files() {
+    // Eliminar directorio de uploads
     $upload_dir = wp_upload_dir();
     $simple_dte_dir = $upload_dir['basedir'] . '/simple-dte/';
 
     if (file_exists($simple_dte_dir)) {
         simple_dte_recursive_delete($simple_dte_dir);
+    }
+
+    // Eliminar directorio de logs del plugin
+    $plugin_logs_dir = plugin_dir_path(__FILE__) . 'logs/';
+    if (file_exists($plugin_logs_dir)) {
+        simple_dte_recursive_delete($plugin_logs_dir);
     }
 }
 
@@ -159,6 +166,7 @@ function simple_dte_delete_cron_jobs() {
         'simple_dte_process_queue',
         'simple_dte_envio_resumen_diario',
         'simple_dte_envio_rvd',
+        'simple_dte_cleanup_logs',
     );
 
     foreach ($crons as $cron) {
