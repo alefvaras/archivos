@@ -17,6 +17,7 @@ class Simple_DTE_RCV {
     public static function init() {
         // AJAX handlers
         add_action('wp_ajax_simple_dte_generar_rcv', array(__CLASS__, 'ajax_generar_rcv'));
+        add_action('wp_ajax_simple_dte_enviar_rcv', array(__CLASS__, 'ajax_enviar_rcv'));
     }
 
     /**
@@ -171,6 +172,79 @@ class Simple_DTE_RCV {
     }
 
     /**
+     * Enviar RCV al SII
+     *
+     * @param string $rcv_xml XML del RCV
+     * @param string $fecha_desde Fecha desde
+     * @param string $fecha_hasta Fecha hasta
+     * @return array|WP_Error Resultado del envío
+     */
+    public static function enviar_rcv($rcv_xml, $fecha_desde, $fecha_hasta) {
+        Simple_DTE_Logger::info('Enviando RCV al SII', array(
+            'desde' => $fecha_desde,
+            'hasta' => $fecha_hasta
+        ));
+
+        // Obtener certificado
+        $cert_path = get_option('simple_dte_cert_path', '');
+
+        if (!file_exists($cert_path)) {
+            return new WP_Error('cert_not_found', __('Certificado digital no encontrado', 'simple-dte'));
+        }
+
+        // Enviar usando el mismo endpoint de sobres
+        $resultado = Simple_DTE_API_Client::enviar_sobre($rcv_xml, $cert_path);
+
+        if (is_wp_error($resultado)) {
+            Simple_DTE_Logger::error('Error al enviar RCV', array(
+                'error' => $resultado->get_error_message()
+            ));
+            return $resultado;
+        }
+
+        // Guardar registro del envío
+        self::guardar_registro_envio($fecha_desde, $fecha_hasta, $resultado);
+
+        Simple_DTE_Logger::info('RCV enviado exitosamente', array(
+            'track_id' => isset($resultado['track_id']) ? $resultado['track_id'] : 'N/A'
+        ));
+
+        return array(
+            'success' => true,
+            'track_id' => isset($resultado['track_id']) ? $resultado['track_id'] : null,
+            'mensaje' => __('RCV enviado correctamente al SII', 'simple-dte')
+        );
+    }
+
+    /**
+     * Guardar registro del envío de RCV
+     */
+    private static function guardar_registro_envio($fecha_desde, $fecha_hasta, $resultado) {
+        $registros = get_option('simple_dte_rcv_enviados', array());
+
+        $registros[] = array(
+            'fecha_desde' => $fecha_desde,
+            'fecha_hasta' => $fecha_hasta,
+            'fecha_envio' => current_time('mysql'),
+            'track_id' => isset($resultado['track_id']) ? $resultado['track_id'] : null,
+            'estado' => 'enviado'
+        );
+
+        // Mantener solo los últimos 90 días
+        $registros = array_slice($registros, -90);
+
+        update_option('simple_dte_rcv_enviados', $registros);
+    }
+
+    /**
+     * Obtener historial de RCVs enviados
+     */
+    public static function get_historial_envios() {
+        $registros = get_option('simple_dte_rcv_enviados', array());
+        return array_reverse($registros); // Más recientes primero
+    }
+
+    /**
      * AJAX: Generar RCV
      */
     public static function ajax_generar_rcv() {
@@ -188,6 +262,33 @@ class Simple_DTE_RCV {
         }
 
         $resultado = self::generar_rcv_ventas($fecha_desde, $fecha_hasta);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success($resultado);
+    }
+
+    /**
+     * AJAX: Enviar RCV
+     */
+    public static function ajax_enviar_rcv() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $fecha_desde = isset($_POST['fecha_desde']) ? sanitize_text_field($_POST['fecha_desde']) : '';
+        $fecha_hasta = isset($_POST['fecha_hasta']) ? sanitize_text_field($_POST['fecha_hasta']) : '';
+        $xml = isset($_POST['xml']) ? $_POST['xml'] : '';
+
+        if (empty($fecha_desde) || empty($fecha_hasta) || empty($xml)) {
+            wp_send_json_error(array('message' => __('Faltan datos requeridos', 'simple-dte')));
+        }
+
+        $resultado = self::enviar_rcv($xml, $fecha_desde, $fecha_hasta);
 
         if (is_wp_error($resultado)) {
             wp_send_json_error(array('message' => $resultado->get_error_message()));

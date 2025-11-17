@@ -181,6 +181,11 @@
 
         var fechaDesde = $('#fecha_desde').val();
         var fechaHasta = $('#fecha_hasta').val();
+        var $btn = $(this).find('button[type="submit"]');
+        var btnText = $btn.text();
+
+        $btn.prop('disabled', true).text('Generando...');
+        $('#resultado-rcv').html('');
 
         $.ajax({
             url: simpleDTE.ajax_url,
@@ -193,20 +198,81 @@
             },
             success: function(response) {
                 if (response.success) {
-                    var xml = response.data.xml;
-                    var blob = new Blob([xml], {type: 'text/xml'});
-                    var url = window.URL.createObjectURL(blob);
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'RCV-' + fechaDesde + '-' + fechaHasta + '.xml';
-                    a.click();
+                    // Guardar datos en campos ocultos
+                    $('#rcv-periodo').text(fechaDesde + ' - ' + fechaHasta);
+                    $('#rcv-cantidad').text(response.data.cantidad_documentos);
+                    $('#rcv-xml').val(response.data.xml);
+                    $('#area-envio-rcv').show();
+
+                    // Guardar fechas en data attributes para el envío
+                    $('#btn-enviar-rcv').data('fecha-desde', fechaDesde).data('fecha-hasta', fechaHasta);
+                    $('#btn-descargar-rcv').data('fecha-desde', fechaDesde).data('fecha-hasta', fechaHasta);
 
                     $('#resultado-rcv').html('<div class="notice notice-success"><p>' + response.data.mensaje + '</p></div>');
                 } else {
                     $('#resultado-rcv').html('<div class="notice notice-error"><p>' + response.data.message + '</p></div>');
                 }
+                $btn.prop('disabled', false).text(btnText);
+            },
+            error: function() {
+                $('#resultado-rcv').html('<div class="notice notice-error"><p>Error de conexión</p></div>');
+                $btn.prop('disabled', false).text(btnText);
             }
         });
+    });
+
+    // Enviar RCV al SII
+    $('#btn-enviar-rcv').on('click', function() {
+        var xml = $('#rcv-xml').val();
+        var fechaDesde = $(this).data('fecha-desde');
+        var fechaHasta = $(this).data('fecha-hasta');
+        var $btn = $(this);
+        var btnText = $btn.text();
+
+        if (!confirm('¿Enviar RCV del período ' + fechaDesde + ' - ' + fechaHasta + ' al SII?')) {
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Enviando...');
+
+        $.ajax({
+            url: simpleDTE.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'simple_dte_enviar_rcv',
+                nonce: simpleDTE.nonce,
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+                xml: xml
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('RCV enviado exitosamente. Track ID: ' + response.data.track_id);
+                    location.reload();
+                } else {
+                    alert('Error: ' + response.data.message);
+                    $btn.prop('disabled', false).text(btnText);
+                }
+            },
+            error: function() {
+                alert('Error de conexión');
+                $btn.prop('disabled', false).text(btnText);
+            }
+        });
+    });
+
+    // Descargar XML RCV
+    $('#btn-descargar-rcv').on('click', function() {
+        var xml = $('#rcv-xml').val();
+        var fechaDesde = $(this).data('fecha-desde');
+        var fechaHasta = $(this).data('fecha-hasta');
+
+        var blob = new Blob([xml], {type: 'text/xml'});
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'RCV-' + fechaDesde + '-' + fechaHasta + '.xml';
+        a.click();
     });
 
     // Generar RVD
@@ -298,6 +364,38 @@
         a.href = url;
         a.download = 'RVD-' + fecha + '.xml';
         a.click();
+    });
+
+    // Consultar estado de RVD
+    $(document).on('click', '.btn-consultar-estado', function() {
+        var $btn = $(this);
+        var trackId = $btn.data('track-id');
+        var btnText = $btn.text();
+
+        $btn.prop('disabled', true).text('Consultando...');
+
+        $.ajax({
+            url: simpleDTE.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'simple_dte_consultar_estado_rvd',
+                nonce: simpleDTE.nonce,
+                track_id: trackId
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Estado actualizado. Recargando página...');
+                    location.reload();
+                } else {
+                    alert('Error: ' + response.data.message);
+                    $btn.prop('disabled', false).text(btnText);
+                }
+            },
+            error: function() {
+                alert('Error de conexión');
+                $btn.prop('disabled', false).text(btnText);
+            }
+        });
     });
 
 })(jQuery);

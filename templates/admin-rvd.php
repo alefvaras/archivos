@@ -1,24 +1,10 @@
 <?php
 /**
  * Template: RVD (Registro de Ventas Diarias)
- * Solo disponible en ambiente de certificación
  */
 
 if (!defined('ABSPATH')) {
     exit;
-}
-
-// Verificar que estamos en certificación
-if (!Simple_DTE_Helpers::is_certificacion()) {
-    ?>
-    <div class="wrap">
-        <h1><?php _e('RVD - Registro de Ventas Diarias', 'simple-dte'); ?></h1>
-        <div class="notice notice-warning">
-            <p><?php _e('El RVD solo está disponible en ambiente de certificación.', 'simple-dte'); ?></p>
-        </div>
-    </div>
-    <?php
-    return;
 }
 ?>
 
@@ -28,9 +14,25 @@ if (!Simple_DTE_Helpers::is_certificacion()) {
     <div class="notice notice-info">
         <p>
             <strong><?php _e('¿Qué es el RVD?', 'simple-dte'); ?></strong><br>
-            <?php _e('El Registro de Ventas Diarias (antes RCOF) es un reporte que debe enviarse diariamente al SII con las boletas emitidas en el día. Es obligatorio en producción y requerido para la certificación.', 'simple-dte'); ?>
+            <?php _e('El Registro de Ventas Diarias (antes RCOF) es un reporte que debe enviarse diariamente al SII con las boletas emitidas en el día. Es obligatorio en producción.', 'simple-dte'); ?>
         </p>
     </div>
+
+    <?php if (Simple_DTE_Helpers::is_certificacion()): ?>
+    <div class="notice notice-warning">
+        <p>
+            <strong><?php _e('Modo Certificación:', 'simple-dte'); ?></strong>
+            <?php _e('Está en ambiente de certificación. Los RVD se envían al servidor de pruebas del SII.', 'simple-dte'); ?>
+        </p>
+    </div>
+    <?php else: ?>
+    <div class="notice notice-error">
+        <p>
+            <strong><?php _e('Modo Producción:', 'simple-dte'); ?></strong>
+            <?php _e('Está en ambiente de producción. Los RVD se envían al servidor real del SII y son legalmente vinculantes.', 'simple-dte'); ?>
+        </p>
+    </div>
+    <?php endif; ?>
 
     <!-- Generar y Enviar RVD -->
     <div class="card">
@@ -128,18 +130,55 @@ if (!Simple_DTE_Helpers::is_certificacion()) {
                     <th><?php _e('Fecha de Envío', 'simple-dte'); ?></th>
                     <th><?php _e('Track ID', 'simple-dte'); ?></th>
                     <th><?php _e('Estado', 'simple-dte'); ?></th>
+                    <th><?php _e('Estado SII', 'simple-dte'); ?></th>
+                    <th><?php _e('Acciones', 'simple-dte'); ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($historial as $registro): ?>
+                    <?php
+                    $estado = isset($registro['estado']) ? $registro['estado'] : 'enviado';
+                    $badge_class = 'badge-secondary';
+
+                    if ($estado === 'aceptado') {
+                        $badge_class = 'badge-success';
+                    } elseif ($estado === 'rechazado') {
+                        $badge_class = 'badge-danger';
+                    } elseif ($estado === 'enviado') {
+                        $badge_class = 'badge-info';
+                    }
+                    ?>
                     <tr>
                         <td><?php echo esc_html(date_i18n('d/m/Y', strtotime($registro['fecha']))); ?></td>
                         <td><?php echo esc_html(date_i18n('d/m/Y H:i', strtotime($registro['fecha_envio']))); ?></td>
                         <td><?php echo esc_html($registro['track_id'] ?: '—'); ?></td>
                         <td>
-                            <span class="badge badge-success">
-                                <?php echo esc_html(ucfirst($registro['estado'])); ?>
+                            <span class="badge <?php echo esc_attr($badge_class); ?>">
+                                <?php echo esc_html(ucfirst($estado)); ?>
                             </span>
+                        </td>
+                        <td>
+                            <?php
+                            if (isset($registro['estado_sii']) && !empty($registro['estado_sii'])) {
+                                echo esc_html($registro['estado_sii']);
+                            } else {
+                                echo '—';
+                            }
+
+                            if (isset($registro['error_sii']) && !empty($registro['error_sii'])) {
+                                echo '<br><small style="color: #dc3545;">' . esc_html($registro['error_sii']) . '</small>';
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($registro['track_id']) && in_array($estado, array('enviado', 'consultado'))): ?>
+                                <button type="button" class="button button-small btn-consultar-estado"
+                                        data-track-id="<?php echo esc_attr($registro['track_id']); ?>">
+                                    <?php _e('Consultar Estado', 'simple-dte'); ?>
+                                </button>
+                            <?php else: ?>
+                                —
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -150,12 +189,28 @@ if (!Simple_DTE_Helpers::is_certificacion()) {
 </div>
 
 <style>
-.badge-success {
-    background: #28a745;
-    color: #fff;
+.badge {
+    display: inline-block;
     padding: 3px 8px;
     border-radius: 3px;
     font-size: 11px;
     font-weight: 600;
+    color: #fff;
+}
+
+.badge-success {
+    background: #28a745;
+}
+
+.badge-info {
+    background: #17a2b8;
+}
+
+.badge-danger {
+    background: #dc3545;
+}
+
+.badge-secondary {
+    background: #6c757d;
 }
 </style>

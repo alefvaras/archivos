@@ -28,16 +28,22 @@ Plugin completo de integración con Simple API para emisión de Boletas Electró
 - Consulta de folios disponibles en tiempo real
 
 ✅ **RCV (Registro de Compras y Ventas)**
-- Generación de libro de ventas
-- Exportación en formato XML
+- Generación de libro de ventas para períodos personalizados
+- Exportación en formato XML SII
 - Filtrado por rango de fechas
+- **Envío directo al SII con seguimiento**
+- Almacenamiento en base de datos con historial
+- Cálculo automático de totales, netos e IVA
 
 ✅ **RVD (Registro de Ventas Diarias)**
-- Solo disponible en ambiente de certificación
+- **Disponible en certificación y producción** (obligatorio en producción)
 - Generación diaria de consumo de folios
-- Envío automático programado (23:00 hrs)
-- Historial de envíos con Track IDs
+- Envío automático programado (23:00 hrs) o manual
+- **Consulta de estado del envío en SII**
+- Historial completo con Track IDs y estados
 - Exportación XML en formato ConsumoFolios
+- Almacenamiento persistente en base de datos
+- Códigos de color para estados: enviado, aceptado, rechazado
 
 ✅ **Gestión de Folios**
 - Carga de archivos CAF (XML)
@@ -197,17 +203,33 @@ Para certificación, usar los casos de prueba:
 
 ### Generar RCV (Libro de Ventas)
 
+El RCV (Registro de Compras y Ventas) es un libro auxiliar obligatorio que registra todas las operaciones del período.
+
+#### Generar y Enviar RCV:
+
 1. Ir a WooCommerce > RCV
-2. Seleccionar "Fecha Desde"
-3. Seleccionar "Fecha Hasta"
-4. Clic en "Generar RCV"
-5. Se descargará archivo XML automáticamente
+2. Seleccionar "Fecha Desde" y "Fecha Hasta"
+3. Clic en "Generar RCV"
+4. Revisar el XML generado con el resumen de documentos
+5. **Opciones:**
+   - **Descargar XML**: Guarda el archivo localmente
+   - **Enviar al SII**: Envía directamente al SII y obtiene Track ID
+6. El sistema guarda un historial de todos los RCV generados y enviados
 
-### RVD - Registro de Ventas Diarias (Solo Certificación)
+**Contenido del RCV:**
+- Todas las boletas y facturas del período
+- Resumen por tipo de documento
+- Totales de neto, IVA y montos totales
+- Detalle de cada documento con RUT receptor
 
-El RVD es un reporte diario obligatorio que debe enviarse al SII con las boletas emitidas en el día.
+### RVD - Registro de Ventas Diarias
 
-**IMPORTANTE**: Solo disponible en ambiente de Certificación/Pruebas
+El RVD es un reporte diario **OBLIGATORIO en producción** que debe enviarse al SII con las boletas emitidas en el día.
+
+**IMPORTANTE**:
+- ✅ Disponible en **certificación y producción**
+- ⚠️ Obligatorio enviar diariamente en ambiente de producción
+- 📅 Se recomienda enviar al día siguiente antes de las 11:00 hrs
 
 #### Generar y Enviar RVD Manual:
 
@@ -217,6 +239,7 @@ El RVD es un reporte diario obligatorio que debe enviarse al SII con las boletas
 4. Revisar el XML generado y cantidad de boletas
 5. Clic en "Enviar RVD al SII"
 6. Verificar Track ID del envío
+7. **Consultar Estado**: Hacer clic en "Consultar Estado" en el historial para verificar aceptación del SII
 
 #### Configurar Envío Automático:
 
@@ -224,6 +247,13 @@ El RVD es un reporte diario obligatorio que debe enviarse al SII con las boletas
 2. Activar "Enviar RVD automáticamente todos los días a las 23:00"
 3. Guardar configuración
 4. El sistema enviará automáticamente el RVD del día anterior cada noche
+
+#### Estados del RVD:
+
+- 🔵 **Enviado**: RVD enviado al SII, esperando procesamiento
+- 🟢 **Aceptado**: SII aceptó el RVD correctamente
+- 🔴 **Rechazado**: SII rechazó el RVD (ver error)
+- ⚪ **Consultado**: Estado consultado pero aún en proceso
 
 **Nota**: El RVD incluye todas las boletas electrónicas (tipos 39 y 41) emitidas en el día seleccionado.
 
@@ -293,8 +323,45 @@ simple-dte-plugin/
 - folio_hasta (int)
 - folio_actual (int)
 - fecha_carga (datetime)
-- archivo_caf (text) - ruta al archivo
-- estado (varchar 20) - activo|agotado
+- archivo_caf (text)
+- estado (varchar 20)
+```
+
+#### wp_simple_dte_rcv (Nuevo)
+```sql
+- id (bigint, auto_increment)
+- fecha_desde (date)
+- fecha_hasta (date)
+- fecha_generacion (datetime)
+- fecha_envio (datetime)
+- cantidad_documentos (int)
+- monto_neto (decimal 15,2)
+- monto_iva (decimal 15,2)
+- monto_total (decimal 15,2)
+- xml_contenido (longtext)
+- track_id (varchar 100)
+- estado (varchar 20) - generado|enviado|aceptado|rechazado
+- estado_sii (varchar 200)
+- error_sii (text)
+- fecha_consulta (datetime)
+```
+
+#### wp_simple_dte_rvd (Nuevo)
+```sql
+- id (bigint, auto_increment)
+- fecha (date) - UNIQUE
+- fecha_generacion (datetime)
+- fecha_envio (datetime)
+- cantidad_boletas (int)
+- monto_afecto (decimal 15,2)
+- monto_exento (decimal 15,2)
+- monto_total (decimal 15,2)
+- xml_contenido (longtext)
+- track_id (varchar 100)
+- estado (varchar 20) - generado|enviado|aceptado|rechazado
+- estado_sii (varchar 200)
+- error_sii (text)
+- fecha_consulta (datetime)
 ```
 
 ### Metadatos de Órdenes:

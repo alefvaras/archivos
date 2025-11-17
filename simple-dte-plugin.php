@@ -185,9 +185,62 @@ class Simple_DTE_Plugin {
             KEY estado (estado)
         ) $charset_collate;";
 
+        // Crear tabla de RCV (Registro de Compras y Ventas)
+        $table_rcv = $wpdb->prefix . 'simple_dte_rcv';
+
+        $sql_rcv = "CREATE TABLE IF NOT EXISTS $table_rcv (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            fecha_desde date NOT NULL,
+            fecha_hasta date NOT NULL,
+            fecha_generacion datetime NOT NULL,
+            fecha_envio datetime,
+            cantidad_documentos int(11) NOT NULL,
+            monto_neto decimal(15,2) NOT NULL,
+            monto_iva decimal(15,2) NOT NULL,
+            monto_total decimal(15,2) NOT NULL,
+            xml_contenido longtext,
+            track_id varchar(100),
+            estado varchar(20) DEFAULT 'generado',
+            estado_sii varchar(200),
+            error_sii text,
+            fecha_consulta datetime,
+            PRIMARY KEY (id),
+            KEY fecha_desde (fecha_desde),
+            KEY fecha_hasta (fecha_hasta),
+            KEY estado (estado),
+            KEY track_id (track_id)
+        ) $charset_collate;";
+
+        // Crear tabla de RVD (Registro de Ventas Diarias)
+        $table_rvd = $wpdb->prefix . 'simple_dte_rvd';
+
+        $sql_rvd = "CREATE TABLE IF NOT EXISTS $table_rvd (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            fecha date NOT NULL,
+            fecha_generacion datetime NOT NULL,
+            fecha_envio datetime,
+            cantidad_boletas int(11) NOT NULL,
+            monto_afecto decimal(15,2) NOT NULL,
+            monto_exento decimal(15,2) NOT NULL,
+            monto_total decimal(15,2) NOT NULL,
+            xml_contenido longtext,
+            track_id varchar(100),
+            estado varchar(20) DEFAULT 'generado',
+            estado_sii varchar(200),
+            error_sii text,
+            fecha_consulta datetime,
+            PRIMARY KEY (id),
+            KEY fecha (fecha),
+            KEY estado (estado),
+            KEY track_id (track_id),
+            UNIQUE KEY fecha_unique (fecha)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_logs);
         dbDelta($sql_folios);
+        dbDelta($sql_rcv);
+        dbDelta($sql_rvd);
 
         // Opciones por defecto
         add_option('simple_dte_ambiente', 'certificacion');

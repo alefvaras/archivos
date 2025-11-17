@@ -19,14 +19,13 @@ class Simple_DTE_RVD {
         // AJAX handlers
         add_action('wp_ajax_simple_dte_generar_rvd', array(__CLASS__, 'ajax_generar_rvd'));
         add_action('wp_ajax_simple_dte_enviar_rvd', array(__CLASS__, 'ajax_enviar_rvd'));
+        add_action('wp_ajax_simple_dte_consultar_estado_rvd', array(__CLASS__, 'ajax_consultar_estado_rvd'));
 
-        // Cron para envío automático diario (solo certificación)
+        // Cron para envío automático diario
         add_action('simple_dte_envio_rvd_diario', array(__CLASS__, 'enviar_rvd_automatico'));
 
-        // Activar cron si está en certificación
-        if (Simple_DTE_Helpers::is_certificacion()) {
-            self::schedule_daily_rvd();
-        }
+        // Activar cron si está habilitado el envío automático
+        self::schedule_daily_rvd();
     }
 
     /**
@@ -46,14 +45,6 @@ class Simple_DTE_RVD {
      * @return array|WP_Error Resultado de la generación
      */
     public static function generar_rvd($fecha) {
-        // Validar que estamos en certificación
-        if (!Simple_DTE_Helpers::is_certificacion()) {
-            return new WP_Error(
-                'ambiente_invalido',
-                __('El RVD solo está disponible en ambiente de certificación', 'simple-dte')
-            );
-        }
-
         Simple_DTE_Logger::info('Generando RVD', array('fecha' => $fecha));
 
         // Validar fecha
@@ -303,11 +294,6 @@ class Simple_DTE_RVD {
      * Envío automático diario
      */
     public static function enviar_rvd_automatico() {
-        // Solo ejecutar en certificación
-        if (!Simple_DTE_Helpers::is_certificacion()) {
-            return;
-        }
-
         // Verificar si está habilitado
         if (!get_option('simple_dte_rvd_auto', false)) {
             return;
@@ -349,6 +335,79 @@ class Simple_DTE_RVD {
     public static function get_historial_envios() {
         $registros = get_option('simple_dte_rvd_enviados', array());
         return array_reverse($registros); // Más recientes primero
+    }
+
+    /**
+     * Consultar estado de un RVD enviado
+     *
+     * @param string $track_id Track ID del envío
+     * @return array|WP_Error Estado del envío
+     */
+    public static function consultar_estado_rvd($track_id) {
+        $rut_emisor = get_option('simple_dte_rut_emisor', '');
+
+        Simple_DTE_Logger::info('Consultando estado de RVD', array('track_id' => $track_id));
+
+        $resultado = Simple_DTE_API_Client::consultar_estado_envio($track_id, $rut_emisor);
+
+        if (is_wp_error($resultado)) {
+            Simple_DTE_Logger::error('Error al consultar estado', array(
+                'track_id' => $track_id,
+                'error' => $resultado->get_error_message()
+            ));
+            return $resultado;
+        }
+
+        // Actualizar estado en el historial
+        self::actualizar_estado_en_historial($track_id, $resultado);
+
+        return $resultado;
+    }
+
+    /**
+     * Actualizar estado de un envío en el historial
+     *
+     * @param string $track_id Track ID del envío
+     * @param array $estado_data Datos del estado
+     */
+    private static function actualizar_estado_en_historial($track_id, $estado_data) {
+        $registros = get_option('simple_dte_rvd_enviados', array());
+
+        foreach ($registros as &$registro) {
+            if ($registro['track_id'] === $track_id) {
+                $registro['estado'] = isset($estado_data['estado']) ? $estado_data['estado'] : 'consultado';
+                $registro['estado_sii'] = isset($estado_data['glosa']) ? $estado_data['glosa'] : '';
+                $registro['fecha_consulta'] = current_time('mysql');
+
+                if (isset($estado_data['aceptado']) && $estado_data['aceptado']) {
+                    $registro['estado'] = 'aceptado';
+                } elseif (isset($estado_data['rechazado']) && $estado_data['rechazado']) {
+                    $registro['estado'] = 'rechazado';
+                    $registro['error_sii'] = isset($estado_data['error']) ? $estado_data['error'] : '';
+                }
+
+                break;
+            }
+        }
+
+        update_option('simple_dte_rvd_enviados', $registros);
+    }
+
+    /**
+     * Actualizar estados de todos los envíos pendientes
+     */
+    public static function actualizar_estados_pendientes() {
+        $registros = get_option('simple_dte_rvd_enviados', array());
+
+        foreach ($registros as $registro) {
+            // Solo actualizar si está en estado 'enviado' o 'consultado'
+            if (in_array($registro['estado'], array('enviado', 'consultado')) && !empty($registro['track_id'])) {
+                self::consultar_estado_rvd($registro['track_id']);
+
+                // Pequeña pausa para no saturar la API
+                sleep(1);
+            }
+        }
     }
 
     /**
@@ -394,6 +453,31 @@ class Simple_DTE_RVD {
         }
 
         $resultado = self::enviar_rvd($xml, $fecha);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success($resultado);
+    }
+
+    /**
+     * AJAX: Consultar estado de RVD
+     */
+    public static function ajax_consultar_estado_rvd() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $track_id = isset($_POST['track_id']) ? sanitize_text_field($_POST['track_id']) : '';
+
+        if (empty($track_id)) {
+            wp_send_json_error(array('message' => __('Track ID requerido', 'simple-dte')));
+        }
+
+        $resultado = self::consultar_estado_rvd($track_id);
 
         if (is_wp_error($resultado)) {
             wp_send_json_error(array('message' => $resultado->get_error_message()));
