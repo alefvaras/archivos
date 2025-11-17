@@ -38,6 +38,11 @@ class Simple_DTE_Settings {
         register_setting('simple_dte_settings', 'simple_dte_cert_rut');
         register_setting('simple_dte_settings', 'simple_dte_cert_password');
         register_setting('simple_dte_settings', 'simple_dte_cert_path');
+
+        // Sección Notas de Crédito
+        register_setting('simple_dte_settings', 'simple_dte_auto_nc_enabled');
+        register_setting('simple_dte_settings', 'simple_dte_auto_nc_tipo');
+        register_setting('simple_dte_settings', 'simple_dte_auto_nc_validar_monto');
     }
 
     /**
@@ -191,6 +196,59 @@ class Simple_DTE_Settings {
                                 _e('No hay certificado cargado', 'simple-dte');
                             }
                             ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th colspan="2">
+                        <h2><?php _e('Notas de Crédito Automáticas', 'simple-dte'); ?></h2>
+                    </th>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_auto_nc_enabled"><?php _e('Generar NC automáticamente', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="checkbox" name="simple_dte_auto_nc_enabled" id="simple_dte_auto_nc_enabled" value="1"
+                               <?php checked(get_option('simple_dte_auto_nc_enabled'), 1); ?> />
+                        <?php _e('Generar Nota de Crédito automáticamente cuando se cree un reembolso (refund)', 'simple-dte'); ?>
+                        <p class="description">
+                            <?php _e('Si está desactivado, se podrá generar NC manualmente desde el metabox de la orden.', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_auto_nc_tipo"><?php _e('Tipo de NC por defecto', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <select name="simple_dte_auto_nc_tipo" id="simple_dte_auto_nc_tipo">
+                            <option value="1" <?php selected(get_option('simple_dte_auto_nc_tipo', '1'), '1'); ?>>
+                                <?php _e('1 - Anulación (recomendado)', 'simple-dte'); ?>
+                            </option>
+                            <option value="2" <?php selected(get_option('simple_dte_auto_nc_tipo'), '2'); ?>>
+                                <?php _e('2 - Corregir texto', 'simple-dte'); ?>
+                            </option>
+                            <option value="3" <?php selected(get_option('simple_dte_auto_nc_tipo'), '3'); ?>>
+                                <?php _e('3 - Corregir montos', 'simple-dte'); ?>
+                            </option>
+                        </select>
+                        <p class="description">
+                            <?php _e('Código de referencia que se usará para las NC automáticas', 'simple-dte'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_auto_nc_validar_monto"><?php _e('Validar monto completo', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <input type="checkbox" name="simple_dte_auto_nc_validar_monto" id="simple_dte_auto_nc_validar_monto" value="1"
+                               <?php checked(get_option('simple_dte_auto_nc_validar_monto'), 1); ?> />
+                        <?php _e('Solo generar NC si el monto del reembolso es igual al total de la boleta/factura', 'simple-dte'); ?>
+                        <p class="description">
+                            <?php _e('Si está activado, las NC solo se generarán para reembolsos totales (anulación completa). Los reembolsos parciales requerirán generación manual.', 'simple-dte'); ?>
                         </p>
                     </td>
                 </tr>

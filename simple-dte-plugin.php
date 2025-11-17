@@ -141,6 +141,9 @@ class Simple_DTE_Plugin {
         // Inicializar RVD
         Simple_DTE_RVD::init();
 
+        // Inicializar Notas de Crédito
+        Simple_DTE_Nota_Credito_Generator::init();
+
         // Log de inicialización
         Simple_DTE_Logger::info('Simple DTE Plugin inicializado correctamente');
     }

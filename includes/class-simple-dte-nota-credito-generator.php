@@ -12,6 +12,124 @@ if (!defined('ABSPATH')) {
 class Simple_DTE_Nota_Credito_Generator {
 
     /**
+     * Inicializar hooks
+     */
+    public static function init() {
+        // Hook para generación automática de NC cuando se crea un refund
+        add_action('woocommerce_order_refunded', array(__CLASS__, 'auto_generar_nc_on_refund'), 10, 2);
+    }
+
+    /**
+     * Generar NC automáticamente cuando se crea un refund
+     *
+     * @param int $order_id ID de la orden
+     * @param int $refund_id ID del refund
+     */
+    public static function auto_generar_nc_on_refund($order_id, $refund_id) {
+        // Verificar si la generación automática está habilitada
+        if (!get_option('simple_dte_auto_nc_enabled')) {
+            Simple_DTE_Logger::info('NC automática deshabilitada en configuración', array(
+                'order_id' => $order_id,
+                'refund_id' => $refund_id
+            ));
+            return;
+        }
+
+        $order = wc_get_order($order_id);
+        $refund = wc_get_order($refund_id);
+
+        if (!$order || !$refund) {
+            Simple_DTE_Logger::error('Orden o refund no encontrado para NC automática', array(
+                'order_id' => $order_id,
+                'refund_id' => $refund_id
+            ));
+            return;
+        }
+
+        // Verificar que la orden tenga DTE generado
+        if ($order->get_meta('_simple_dte_generada') !== 'yes') {
+            Simple_DTE_Logger::info('Orden sin DTE, no se puede generar NC automática', array(
+                'order_id' => $order_id
+            ));
+            return;
+        }
+
+        // Verificar si ya tiene NC generada
+        if ($order->get_meta('_simple_dte_nc_generada') === 'yes') {
+            Simple_DTE_Logger::info('Orden ya tiene NC generada', array(
+                'order_id' => $order_id
+            ));
+            return;
+        }
+
+        // Validar monto si está configurado
+        $validar_monto = get_option('simple_dte_auto_nc_validar_monto');
+        if ($validar_monto) {
+            $monto_refund = abs((float) $refund->get_total());
+            $monto_orden = (float) $order->get_total();
+
+            if ($monto_refund != $monto_orden) {
+                Simple_DTE_Logger::info('Refund parcial, se requiere generación manual de NC', array(
+                    'order_id' => $order_id,
+                    'monto_refund' => $monto_refund,
+                    'monto_orden' => $monto_orden
+                ));
+
+                // Agregar nota en la orden
+                $order->add_order_note(
+                    __('Reembolso parcial creado. Genere la Nota de Crédito manualmente desde el metabox.', 'simple-dte')
+                );
+
+                return;
+            }
+        }
+
+        // Obtener tipo de NC configurado
+        $codigo_ref = get_option('simple_dte_auto_nc_tipo', 1);
+
+        // Generar NC
+        Simple_DTE_Logger::info('Generando NC automática', array(
+            'order_id' => $order_id,
+            'refund_id' => $refund_id,
+            'codigo_ref' => $codigo_ref
+        ));
+
+        $resultado = self::generar_desde_orden(
+            $order,
+            $refund,
+            array('codigo_ref' => (int) $codigo_ref)
+        );
+
+        if (is_wp_error($resultado)) {
+            Simple_DTE_Logger::error('Error al generar NC automática', array(
+                'error' => $resultado->get_error_message(),
+                'order_id' => $order_id
+            ), $order_id);
+
+            // Agregar nota de error en la orden
+            $order->add_order_note(
+                sprintf(
+                    __('Error al generar NC automática: %s. Genere la NC manualmente.', 'simple-dte'),
+                    $resultado->get_error_message()
+                )
+            );
+        } else {
+            Simple_DTE_Logger::info('NC automática generada exitosamente', array(
+                'order_id' => $order_id,
+                'folio' => $resultado['folio']
+            ), $order_id);
+
+            // Agregar nota de éxito
+            $order->add_order_note(
+                sprintf(
+                    __('✓ Nota de Crédito N° %d generada automáticamente', 'simple-dte'),
+                    $resultado['folio']
+                )
+            );
+        }
+    }
+
+    /**
      * Generar nota de crédito desde una orden/refund
      *
      * @param WC_Order $order Orden original
