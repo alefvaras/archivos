@@ -16,6 +16,18 @@ class Simple_DTE_Settings {
      */
     public static function init() {
         add_action('admin_init', array(__CLASS__, 'register_settings'));
+        add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_media_uploader'));
+    }
+
+    /**
+     * Cargar WordPress Media Uploader
+     */
+    public static function enqueue_media_uploader($hook) {
+        // Solo cargar en la página de configuración
+        if ('toplevel_page_simple-dte' !== $hook && 'simple-dte_page_simple-dte-settings' !== $hook) {
+            return;
+        }
+        wp_enqueue_media();
     }
 
     /**
@@ -33,6 +45,7 @@ class Simple_DTE_Settings {
         register_setting('simple_dte_settings', 'simple_dte_giro');
         register_setting('simple_dte_settings', 'simple_dte_direccion');
         register_setting('simple_dte_settings', 'simple_dte_comuna');
+        register_setting('simple_dte_settings', 'simple_dte_logo_url');
 
         // Sección Certificado
         register_setting('simple_dte_settings', 'simple_dte_cert_rut');
@@ -154,6 +167,95 @@ class Simple_DTE_Settings {
                     <td>
                         <input type="text" name="simple_dte_comuna" id="simple_dte_comuna"
                                value="<?php echo esc_attr(get_option('simple_dte_comuna')); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="simple_dte_logo_url"><?php _e('Logo de la Empresa', 'simple-dte'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $logo_url = get_option('simple_dte_logo_url');
+                        ?>
+                        <div class="simple-dte-logo-upload">
+                            <input type="hidden" name="simple_dte_logo_url" id="simple_dte_logo_url"
+                                   value="<?php echo esc_attr($logo_url); ?>" />
+
+                            <div class="logo-preview" style="margin-bottom: 10px;">
+                                <?php if ($logo_url): ?>
+                                    <img src="<?php echo esc_url($logo_url); ?>"
+                                         style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 5px; background: #fff;"
+                                         alt="Logo" id="logo-preview-img" />
+                                <?php else: ?>
+                                    <div id="logo-preview-img" style="display: none;">
+                                        <img src="" style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 5px; background: #fff;" alt="Logo" />
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <button type="button" class="button button-secondary" id="upload-logo-button">
+                                <?php echo $logo_url ? __('Cambiar Logo', 'simple-dte') : __('Subir Logo', 'simple-dte'); ?>
+                            </button>
+
+                            <?php if ($logo_url): ?>
+                                <button type="button" class="button button-link-delete" id="remove-logo-button" style="margin-left: 10px;">
+                                    <?php _e('Eliminar Logo', 'simple-dte'); ?>
+                                </button>
+                            <?php endif; ?>
+
+                            <p class="description">
+                                <?php _e('Sube el logo de tu empresa para que aparezca en las boletas. Tamaño recomendado: 200x100 píxeles. Formatos: JPG, PNG.', 'simple-dte'); ?>
+                            </p>
+                        </div>
+
+                        <script type="text/javascript">
+                        jQuery(document).ready(function($) {
+                            var logoFrame;
+
+                            // Abrir media uploader
+                            $('#upload-logo-button').on('click', function(e) {
+                                e.preventDefault();
+
+                                if (logoFrame) {
+                                    logoFrame.open();
+                                    return;
+                                }
+
+                                logoFrame = wp.media({
+                                    title: '<?php _e('Seleccionar Logo', 'simple-dte'); ?>',
+                                    button: {
+                                        text: '<?php _e('Usar este logo', 'simple-dte'); ?>'
+                                    },
+                                    library: {
+                                        type: ['image']
+                                    },
+                                    multiple: false
+                                });
+
+                                logoFrame.on('select', function() {
+                                    var attachment = logoFrame.state().get('selection').first().toJSON();
+                                    $('#simple_dte_logo_url').val(attachment.url);
+                                    $('#logo-preview-img').html('<img src="' + attachment.url + '" style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 5px; background: #fff;" alt="Logo" />').show();
+                                    $('#upload-logo-button').text('<?php _e('Cambiar Logo', 'simple-dte'); ?>');
+
+                                    if ($('#remove-logo-button').length === 0) {
+                                        $('#upload-logo-button').after('<button type="button" class="button button-link-delete" id="remove-logo-button" style="margin-left: 10px;"><?php _e('Eliminar Logo', 'simple-dte'); ?></button>');
+                                    }
+                                });
+
+                                logoFrame.open();
+                            });
+
+                            // Eliminar logo
+                            $(document).on('click', '#remove-logo-button', function(e) {
+                                e.preventDefault();
+                                $('#simple_dte_logo_url').val('');
+                                $('#logo-preview-img').hide().html('');
+                                $('#upload-logo-button').text('<?php _e('Subir Logo', 'simple-dte'); ?>');
+                                $(this).remove();
+                            });
+                        });
+                        </script>
                     </td>
                 </tr>
 

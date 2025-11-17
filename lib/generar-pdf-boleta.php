@@ -57,10 +57,96 @@ class BoletaPDF extends FPDF {
     }
 
     /**
+     * Agregar logo de la empresa
+     */
+    private function agregarLogo($logo_url) {
+        try {
+            // Intentar obtener el archivo del logo
+            $logo_path = $this->descargarImagen($logo_url);
+
+            if (!$logo_path || !file_exists($logo_path)) {
+                return; // Si no se puede obtener el logo, continuar sin él
+            }
+
+            // Obtener dimensiones de la imagen
+            $image_info = @getimagesize($logo_path);
+            if (!$image_info) {
+                return;
+            }
+
+            list($width_px, $height_px) = $image_info;
+
+            // Calcular dimensiones para que quede bien en el ticket
+            // Ancho máximo: 50mm (dejamos margen a los lados)
+            // Alto máximo: 20mm
+            $max_width = 50;
+            $max_height = 20;
+
+            $ratio = min($max_width / ($width_px / 3.78), $max_height / ($height_px / 3.78));
+            $logo_width = ($width_px / 3.78) * $ratio;
+            $logo_height = ($height_px / 3.78) * $ratio;
+
+            // Centrar el logo
+            $x = (self::ANCHO_TICKET - $logo_width) / 2;
+            $y = $this->GetY();
+
+            // Insertar imagen
+            $this->Image($logo_path, $x, $y, $logo_width, $logo_height);
+
+            // Mover cursor después del logo
+            $this->SetY($y + $logo_height + 2);
+
+        } catch (Exception $e) {
+            // Si hay error al cargar el logo, continuar sin él
+            error_log('Error al cargar logo en PDF: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Descargar imagen desde URL o usar ruta local
+     */
+    private function descargarImagen($url) {
+        // Si es una ruta local absoluta
+        if (file_exists($url)) {
+            return $url;
+        }
+
+        // Si es URL de WordPress (uploads)
+        $upload_dir = wp_upload_dir();
+        if (strpos($url, $upload_dir['baseurl']) !== false) {
+            $file_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $url);
+            if (file_exists($file_path)) {
+                return $file_path;
+            }
+        }
+
+        // Intentar descargar la imagen temporalmente
+        try {
+            $temp_file = tempnam(sys_get_temp_dir(), 'logo_') . '.jpg';
+            $image_data = @file_get_contents($url);
+
+            if ($image_data !== false) {
+                file_put_contents($temp_file, $image_data);
+                return $temp_file;
+            }
+        } catch (Exception $e) {
+            error_log('Error descargando logo: ' . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
      * Encabezado con datos del emisor
      */
     private function encabezadoEmisor() {
         $emisor = $this->datos_boleta['Documento']['Encabezado']['Emisor'];
+
+        // Logo de la empresa (si está configurado)
+        $logo_url = get_option('simple_dte_logo_url');
+        if (!empty($logo_url)) {
+            $this->agregarLogo($logo_url);
+        }
 
         // Nombre empresa
         $this->SetFont('Arial', 'B', 11);
