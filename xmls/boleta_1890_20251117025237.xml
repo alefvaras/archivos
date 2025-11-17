@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<DTE version="1.0" xmlns="http://www.sii.cl/SiiDte">
+  <Documento ID="DTE-39-1890">
+    <Encabezado>
+      <IdDoc>
+        <TipoDTE>39</TipoDTE>
+        <Folio>1890</Folio>
+        <FchEmis>2025-11-17</FchEmis>
+      </IdDoc>
+      <Emisor>
+        <RUTEmisor>78274225-6</RUTEmisor>
+        <RznSocBoleta>AKIBARA SPA</RznSocBoleta>
+        <GiroBoleta>SERVICIOS DE DESARROLLO DE SOFTWARE</GiroBoleta>
+        <DirOrigen>Santiago</DirOrigen>
+        <CmnaOrigen>Santiago</CmnaOrigen>
+      </Emisor>
+      <Receptor>
+        <RUTRecep>66666666-6</RUTRecep>
+        <RznSocRecep>Alejandro Varas</RznSocRecep>
+        <DirRecep>Santiago, Chile</DirRecep>
+        <CmnaRecep>Santiago</CmnaRecep>
+      </Receptor>
+      <Totales>
+        <MntNeto>810000</MntNeto>
+        <TasaIVA>19</TasaIVA>
+        <IVA>153900</IVA>
+        <MntTotal>963900</MntTotal>
+      </Totales>
+    </Encabezado>
+    <Detalle>
+      <Linea>
+        <NroLinDet>1</NroLinDet>
+        <NmbItem>Servicio de Desarrollo de Software</NmbItem>
+        <DscItem>Desarrollo de sistema de boletas electrónicas</DscItem>
+        <QtyItem>1</QtyItem>
+        <UnmdItem>un</UnmdItem>
+        <PrcItem>350000</PrcItem>
+        <MontoItem>350000</MontoItem>
+      </Linea>
+      <Linea>
+        <NroLinDet>2</NroLinDet>
+        <NmbItem>Consultoría Técnica</NmbItem>
+        <DscItem>Horas de consultoría en integración SII</DscItem>
+        <QtyItem>4</QtyItem>
+        <UnmdItem>hr</UnmdItem>
+        <PrcItem>85000</PrcItem>
+        <MontoItem>340000</MontoItem>
+      </Linea>
+      <Linea>
+        <NroLinDet>3</NroLinDet>
+        <NmbItem>Soporte Mensual Premium</NmbItem>
+        <DscItem>Plan de soporte técnico mensual</DscItem>
+        <QtyItem>1</QtyItem>
+        <UnmdItem>mes</UnmdItem>
+        <PrcItem>120000</PrcItem>
+        <MontoItem>120000</MontoItem>
+      </Linea>
+    </Detalle>
+    <TED version="1.0">
+      <DD>
+        <RE>78274225-6</RE>
+        <TD>39</TD>
+        <F>1890</F>
+        <FE>2025-11-17</FE>
+        <RR>66666666-6</RR>
+        <RSR>Alejandro Varas</RSR>
+        <MNT>963900</MNT>
+        <IT1>SERVICIOS DE DESARROLLO</IT1>
+        <CAF version="1.0">
+          <DA>
+            <RE>78274225-6</RE>
+            <RS>AKIBARA SPA</RS>
+            <TD>39</TD>
+            <RNG><D>1890</D><H>1989</H></RNG>
+            <FA>2025-11-17</FA>
+          </DA>
+          <FRMA algoritmo="SHA1withRSA">SIMULADO_CAF_PRUEBA</FRMA>
+        </CAF>
+        <TSTED>2025-11-17T02:52:37</TSTED>
+      </DD>
+      <FRMT algoritmo="SHA1withRSA">SIMULADO_FIRMA_PRUEBA_d94a9bfac0dc4ba1564913d8cef62416</FRMT>
+    </TED>
+  </Documento>
+</DTE>
