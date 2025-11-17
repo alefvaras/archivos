@@ -355,6 +355,60 @@ class Simple_DTE_Settings {
                         <h2><?php _e('📧 Envío de Boletas por Email', 'simple-dte'); ?></h2>
                     </th>
                 </tr>
+
+                <!-- Información de configuración detectada -->
+                <tr>
+                    <td colspan="2">
+                        <?php
+                        $smtp_info = Simple_DTE_Email::get_smtp_config_info();
+                        $wc_from_name = WC()->mailer()->get_from_name();
+                        $wc_from_email = WC()->mailer()->get_from_address();
+                        ?>
+                        <div style="background: #f0f6fc; border-left: 4px solid #0073aa; padding: 15px; margin: 10px 0;">
+                            <p style="margin: 0 0 10px 0;"><strong>ℹ️ <?php _e('Configuración Automática Detectada', 'simple-dte'); ?></strong></p>
+
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 5px 10px; width: 200px;"><strong><?php _e('Remitente:', 'simple-dte'); ?></strong></td>
+                                    <td style="padding: 5px 10px;">
+                                        <?php echo esc_html($wc_from_name); ?> &lt;<?php echo esc_html($wc_from_email); ?>&gt;
+                                        <span style="color: #666; font-size: 12px;">(de WooCommerce)</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px 10px;"><strong><?php _e('Método de envío:', 'simple-dte'); ?></strong></td>
+                                    <td style="padding: 5px 10px;">
+                                        <?php if ($smtp_info['source'] === 'mailpoet'): ?>
+                                            <span style="color: #46b450;">✓ MailPoet SMTP</span>
+                                            <span style="color: #666; font-size: 12px;">
+                                                (<?php echo esc_html($smtp_info['details']['host']); ?>:<?php echo esc_html($smtp_info['details']['port']); ?>)
+                                            </span>
+                                        <?php elseif ($smtp_info['source'] === 'simple_dte'): ?>
+                                            <span style="color: #46b450;">✓ Simple DTE SMTP</span>
+                                            <span style="color: #666; font-size: 12px;">
+                                                (<?php echo esc_html($smtp_info['details']['host']); ?>:<?php echo esc_html($smtp_info['details']['port']); ?>)
+                                            </span>
+                                        <?php else: ?>
+                                            <span style="color: #f0ad4e;">⚠ WordPress wp_mail()</span>
+                                            <span style="color: #666; font-size: 12px;">(puede ser menos confiable)</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <?php if ($smtp_info['source'] === 'mailpoet'): ?>
+                                <p style="margin: 10px 0 0 0; color: #666; font-size: 13px;">
+                                    <strong>Nota:</strong> Se está usando la configuración SMTP de MailPoet. No necesitas configurar SMTP aquí.
+                                </p>
+                            <?php elseif ($smtp_info['source'] === 'wordpress'): ?>
+                                <p style="margin: 10px 0 0 0; color: #f0ad4e; font-size: 13px;">
+                                    <strong>Recomendación:</strong> Para mayor confiabilidad en el envío de emails, configura SMTP más abajo o instala MailPoet.
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+                </tr>
+
                 <tr>
                     <th scope="row">
                         <label for="simple_dte_auto_email_enabled"><?php _e('Enviar automáticamente', 'simple-dte'); ?></label>

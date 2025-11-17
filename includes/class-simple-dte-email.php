@@ -134,14 +134,29 @@ class Simple_DTE_Email {
 
     /**
      * Obtener headers del email
+     *
+     * Prioridad de configuración:
+     * 1. Configuración de WooCommerce (si existe)
+     * 2. Configuración de Simple DTE
+     * 3. Configuración por defecto de WordPress
      */
     private static function get_headers() {
-        $razon_social = get_option('simple_dte_razon_social', get_bloginfo('name'));
-        $from_email = get_option('admin_email');
+        // Intentar obtener configuración de WooCommerce primero
+        $from_name = WC()->mailer()->get_from_name();
+        $from_email = WC()->mailer()->get_from_address();
 
-        // Permitir configurar email de envío
+        // Si WooCommerce no tiene configuración, usar Simple DTE
+        if (empty($from_name)) {
+            $from_name = get_option('simple_dte_razon_social', get_bloginfo('name'));
+        }
+
+        if (empty($from_email)) {
+            $from_email = get_option('admin_email');
+        }
+
+        // Permitir override con filtros
         $from_email = apply_filters('simple_dte_from_email', $from_email);
-        $from_name = apply_filters('simple_dte_from_name', $razon_social);
+        $from_name = apply_filters('simple_dte_from_name', $from_name);
 
         $headers = array(
             'Content-Type: text/plain; charset=UTF-8',
@@ -198,20 +213,113 @@ class Simple_DTE_Email {
     }
 
     /**
-     * Configurar SMTP si está configurado
+     * Configurar SMTP
+     *
+     * Prioridad de configuración:
+     * 1. MailPoet (si está instalado y configurado)
+     * 2. Simple DTE (si está habilitado)
+     * 3. WooCommerce/WordPress por defecto (wp_mail nativo)
      */
     public static function configure_smtp() {
-        $smtp_enabled = get_option('simple_dte_smtp_enabled', false);
-
-        if (!$smtp_enabled) {
+        // Si MailPoet está activo y configurado, él manejará el SMTP
+        if (self::is_mailpoet_smtp_active()) {
+            Simple_DTE_Logger::info('SMTP: Usando configuración de MailPoet');
             return;
         }
 
-        add_action('phpmailer_init', array(__CLASS__, 'configure_phpmailer'));
+        // Si Simple DTE tiene SMTP habilitado, usarlo
+        $smtp_enabled = get_option('simple_dte_smtp_enabled', false);
+        if ($smtp_enabled) {
+            add_action('phpmailer_init', array(__CLASS__, 'configure_phpmailer'), 10);
+            Simple_DTE_Logger::info('SMTP: Usando configuración de Simple DTE');
+            return;
+        }
+
+        // Si no hay SMTP configurado, usar wp_mail() nativo
+        Simple_DTE_Logger::info('SMTP: Usando wp_mail() nativo de WordPress');
     }
 
     /**
-     * Configurar PHPMailer con SMTP
+     * Verificar si MailPoet está activo y configurado con SMTP
+     *
+     * @return bool
+     */
+    private static function is_mailpoet_smtp_active() {
+        // Verificar si MailPoet está instalado
+        if (!class_exists('\MailPoet\Config\Env')) {
+            return false;
+        }
+
+        // Verificar si tiene configuración SMTP
+        $mailpoet_settings = get_option('mailpoet_settings');
+
+        if (!$mailpoet_settings || !is_array($mailpoet_settings)) {
+            return false;
+        }
+
+        // MailPoet 3.x guarda la configuración en mailpoet_settings['mta']
+        if (isset($mailpoet_settings['mta']['method']) && $mailpoet_settings['mta']['method'] === 'SMTP') {
+            return !empty($mailpoet_settings['mta']['host']);
+        }
+
+        return false;
+    }
+
+    /**
+     * Obtener información de configuración SMTP detectada
+     *
+     * @return array
+     */
+    public static function get_smtp_config_info() {
+        $info = array(
+            'source' => 'none',
+            'configured' => false,
+            'details' => array()
+        );
+
+        // Verificar MailPoet
+        if (self::is_mailpoet_smtp_active()) {
+            $mailpoet_settings = get_option('mailpoet_settings');
+            $smtp = $mailpoet_settings['mta'];
+
+            $info['source'] = 'mailpoet';
+            $info['configured'] = true;
+            $info['details'] = array(
+                'host' => $smtp['host'] ?? '',
+                'port' => $smtp['port'] ?? '',
+                'secure' => $smtp['encryption'] ?? '',
+                'username' => $smtp['login'] ?? ''
+            );
+            return $info;
+        }
+
+        // Verificar Simple DTE
+        if (get_option('simple_dte_smtp_enabled', false)) {
+            $info['source'] = 'simple_dte';
+            $info['configured'] = true;
+            $info['details'] = array(
+                'host' => get_option('simple_dte_smtp_host', ''),
+                'port' => get_option('simple_dte_smtp_port', ''),
+                'secure' => get_option('simple_dte_smtp_secure', ''),
+                'username' => get_option('simple_dte_smtp_username', '')
+            );
+            return $info;
+        }
+
+        // WooCommerce/WordPress nativo
+        $info['source'] = 'wordpress';
+        $info['configured'] = true;
+        $info['details'] = array(
+            'method' => 'wp_mail()',
+            'from_name' => WC()->mailer()->get_from_name(),
+            'from_email' => WC()->mailer()->get_from_address()
+        );
+
+        return $info;
+    }
+
+    /**
+     * Configurar PHPMailer con SMTP de Simple DTE
      */
     public static function configure_phpmailer($phpmailer) {
         $smtp_host = get_option('simple_dte_smtp_host', '');
