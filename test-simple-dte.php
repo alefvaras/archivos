@@ -247,8 +247,8 @@ echo "---------------------------------------------------\n";
 
 // Construir EnvioBoleta
 $sobre_xml = '<?xml version="1.0" encoding="ISO-8859-1"?>' . "\n";
-$sobre_xml .= '<EnvioBOLETA xmlns="http://www.sii.cl/SiiDte" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0">' . "\n";
-$sobre_xml .= '<SetDTE ID="SetDTE">' . "\n";
+$sobre_xml .= '<EnvioBOLETA xmlns="http://www.sii.cl/SiiDte" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sii.cl/SiiDte EnvioBOLETA_v11.xsd" version="1.0">' . "\n";
+$sobre_xml .= '<SetDTE ID="SetDoc">' . "\n";
 $sobre_xml .= '<Caratula version="1.0">' . "\n";
 $sobre_xml .= '<RutEmisor>' . RUT_EMISOR . '</RutEmisor>' . "\n";
 $sobre_xml .= '<RutEnvia>' . RUT_EMISOR . '</RutEnvia>' . "\n";
