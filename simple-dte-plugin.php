@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Simple DTE - Integración Simple API
  * Plugin URI: https://tu-sitio.cl
- * Description: Plugin de integración con Simple API para emisión de Boletas, Notas de Crédito, consultas y RCV (Ambiente de Pruebas)
+ * Description: Plugin de integración con Simple API para emisión de Boletas Electrónicas, consultas y RCV (Ambiente de Pruebas)
  * Version: 1.0.0
  * Author: Tu Nombre
  * Author URI: https://tu-sitio.cl
@@ -95,8 +95,10 @@ class Simple_DTE_Plugin {
 
         // Generadores
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-boleta-generator.php';
-        require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-nota-credito-generator.php';
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-sobre-generator.php';
+
+        // Email
+        require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-email.php';
 
         // Consultas
         require_once SIMPLE_DTE_PATH . 'includes/class-simple-dte-consultas.php';
@@ -141,6 +143,9 @@ class Simple_DTE_Plugin {
         // Inicializar RVD
         Simple_DTE_RVD::init();
 
+        // Configurar SMTP si está habilitado
+        Simple_DTE_Email::configure_smtp();
+
         // Log de inicialización
         Simple_DTE_Logger::info('Simple DTE Plugin inicializado correctamente');
     }
@@ -151,70 +156,239 @@ class Simple_DTE_Plugin {
     public function activate() {
         global $wpdb;
 
-        // Crear tabla de logs
-        $table_logs = $wpdb->prefix . 'simple_dte_logs';
         $charset_collate = $wpdb->get_charset_collate();
 
+        // Verificar si es actualización
+        $installed_version = get_option('simple_dte_version', '0.0.0');
+        if (version_compare($installed_version, SIMPLE_DTE_VERSION, '<')) {
+            $this->upgrade_database($installed_version);
+        }
+
+        // Crear tabla de logs
+        $table_logs = $wpdb->prefix . 'simple_dte_logs';
         $sql_logs = "CREATE TABLE IF NOT EXISTS $table_logs (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            fecha_hora datetime NOT NULL,
             nivel varchar(20) NOT NULL,
             mensaje text NOT NULL,
             contexto longtext,
             order_id bigint(20),
+            rut varchar(20),
+            folio varchar(20),
+            tipo_dte varchar(10),
+            operacion varchar(50),
+            usuario_id bigint(20),
+            fecha_creacion datetime NOT NULL,
             PRIMARY KEY (id),
-            KEY fecha_hora (fecha_hora),
             KEY nivel (nivel),
-            KEY order_id (order_id)
+            KEY order_id (order_id),
+            KEY rut (rut),
+            KEY folio (folio),
+            KEY fecha_creacion (fecha_creacion)
         ) $charset_collate;";
 
         // Crear tabla de folios
         $table_folios = $wpdb->prefix . 'simple_dte_folios';
-
         $sql_folios = "CREATE TABLE IF NOT EXISTS $table_folios (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             tipo_dte int(11) NOT NULL,
             folio_desde int(11) NOT NULL,
             folio_hasta int(11) NOT NULL,
             folio_actual int(11) NOT NULL,
-            fecha_carga datetime NOT NULL,
-            archivo_caf text NOT NULL,
+            xml_path text NOT NULL,
             estado varchar(20) DEFAULT 'activo',
+            created_at datetime NOT NULL,
             PRIMARY KEY (id),
             KEY tipo_dte (tipo_dte),
-            KEY estado (estado)
+            KEY estado (estado),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+
+        // Crear tabla de cola de reintentos
+        $table_queue = $wpdb->prefix . 'simple_dte_queue';
+        $sql_queue = "CREATE TABLE IF NOT EXISTS $table_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            order_id bigint(20) NOT NULL,
+            dte_tipo varchar(10) NOT NULL,
+            dte_data longtext NOT NULL,
+            error_message text,
+            retry_count int(11) DEFAULT 0,
+            max_retries int(11) DEFAULT 5,
+            status varchar(20) DEFAULT 'pending',
+            created_at datetime NOT NULL,
+            next_retry_at datetime,
+            updated_at datetime,
+            completed_at datetime,
+            PRIMARY KEY (id),
+            KEY order_id (order_id),
+            KEY status (status),
+            KEY next_retry_at (next_retry_at)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_logs);
         dbDelta($sql_folios);
+        dbDelta($sql_queue);
 
-        // Opciones por defecto
+        // Crear directorio de uploads
+        $upload_dir = wp_upload_dir();
+        $simple_dte_dir = $upload_dir['basedir'] . '/simple-dte/';
+
+        if (!file_exists($simple_dte_dir)) {
+            wp_mkdir_p($simple_dte_dir);
+
+            // Crear subdirectorios
+            wp_mkdir_p($simple_dte_dir . 'certs/');
+            wp_mkdir_p($simple_dte_dir . 'caf/');
+            wp_mkdir_p($simple_dte_dir . 'pdf/');
+            wp_mkdir_p($simple_dte_dir . 'xml/');
+            wp_mkdir_p($simple_dte_dir . 'rcv/');
+
+            // Proteger con .htaccess
+            $htaccess_content = "Order deny,allow\nDeny from all";
+            file_put_contents($simple_dte_dir . '.htaccess', $htaccess_content);
+            file_put_contents($simple_dte_dir . 'index.php', '<?php // Silence is golden');
+        }
+
+        // Opciones por defecto - Configuración general
         add_option('simple_dte_ambiente', 'certificacion');
         add_option('simple_dte_api_key', '');
         add_option('simple_dte_debug', true);
-        add_option('simple_dte_rvd_auto', false); // RVD automático desactivado por defecto
+        add_option('simple_dte_rvd_auto', false);
 
-        // Datos del emisor
+        // Opciones por defecto - Datos del emisor
         add_option('simple_dte_rut_emisor', '');
         add_option('simple_dte_razon_social', '');
         add_option('simple_dte_giro', '');
         add_option('simple_dte_direccion', '');
         add_option('simple_dte_comuna', '');
+        add_option('simple_dte_logo_url', '');
 
-        // Certificado
+        // Opciones por defecto - Certificado
         add_option('simple_dte_cert_rut', '');
         add_option('simple_dte_cert_password', '');
         add_option('simple_dte_cert_path', '');
 
-        Simple_DTE_Logger::info('Plugin Simple DTE activado');
+        // Opciones por defecto - Boletas de Ajuste
+        add_option('simple_dte_auto_ajuste_enabled', false);
+
+        // Registrar versión instalada
+        update_option('simple_dte_version', SIMPLE_DTE_VERSION);
+
+        // Log de activación (se guardará cuando Logger esté disponible)
+        error_log('Simple DTE: Plugin activado - versión ' . SIMPLE_DTE_VERSION);
+    }
+
+    /**
+     * Actualizar base de datos
+     *
+     * @param string $from_version Versión desde la que se actualiza
+     */
+    private function upgrade_database($from_version) {
+        global $wpdb;
+
+        error_log("Simple DTE: Actualizando base de datos desde versión {$from_version} a " . SIMPLE_DTE_VERSION);
+
+        // Aquí se pueden agregar migraciones específicas por versión
+        // Por ejemplo:
+        // if (version_compare($from_version, '1.1.0', '<')) {
+        //     // Migración para versión 1.1.0
+        // }
+
+        // Por ahora, simplemente recrear las tablas con dbDelta
+        // que automáticamente agrega columnas faltantes sin eliminar datos
+        $charset_collate = $wpdb->get_charset_collate();
+
+        // Actualizar tabla de logs
+        $table_logs = $wpdb->prefix . 'simple_dte_logs';
+        $sql_logs = "CREATE TABLE $table_logs (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            nivel varchar(20) NOT NULL,
+            mensaje text NOT NULL,
+            contexto longtext,
+            order_id bigint(20),
+            rut varchar(20),
+            folio varchar(20),
+            tipo_dte varchar(10),
+            operacion varchar(50),
+            usuario_id bigint(20),
+            fecha_creacion datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY nivel (nivel),
+            KEY order_id (order_id),
+            KEY rut (rut),
+            KEY folio (folio),
+            KEY fecha_creacion (fecha_creacion)
+        ) $charset_collate;";
+
+        // Actualizar tabla de folios
+        $table_folios = $wpdb->prefix . 'simple_dte_folios';
+        $sql_folios = "CREATE TABLE $table_folios (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            tipo_dte int(11) NOT NULL,
+            folio_desde int(11) NOT NULL,
+            folio_hasta int(11) NOT NULL,
+            folio_actual int(11) NOT NULL,
+            xml_path text NOT NULL,
+            estado varchar(20) DEFAULT 'activo',
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY tipo_dte (tipo_dte),
+            KEY estado (estado),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+
+        // Actualizar tabla de cola
+        $table_queue = $wpdb->prefix . 'simple_dte_queue';
+        $sql_queue = "CREATE TABLE $table_queue (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            order_id bigint(20) NOT NULL,
+            dte_tipo varchar(10) NOT NULL,
+            dte_data longtext NOT NULL,
+            error_message text,
+            retry_count int(11) DEFAULT 0,
+            max_retries int(11) DEFAULT 5,
+            status varchar(20) DEFAULT 'pending',
+            created_at datetime NOT NULL,
+            next_retry_at datetime,
+            updated_at datetime,
+            completed_at datetime,
+            PRIMARY KEY (id),
+            KEY order_id (order_id),
+            KEY status (status),
+            KEY next_retry_at (next_retry_at)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql_logs);
+        dbDelta($sql_folios);
+        dbDelta($sql_queue);
+
+        error_log("Simple DTE: Base de datos actualizada correctamente");
     }
 
     /**
      * Desactivación del plugin
+     *
+     * IMPORTANTE: Al desactivar NO se eliminan datos
+     * Los datos solo se eliminan al DESINSTALAR el plugin
      */
     public function deactivate() {
-        Simple_DTE_Logger::info('Plugin Simple DTE desactivado');
+        // Limpiar cron jobs programados
+        $crons = array(
+            'simple_dte_process_queue',
+            'simple_dte_envio_resumen_diario',
+            'simple_dte_envio_rvd',
+        );
+
+        foreach ($crons as $cron) {
+            $timestamp = wp_next_scheduled($cron);
+            if ($timestamp) {
+                wp_unschedule_event($timestamp, $cron);
+            }
+            wp_clear_scheduled_hook($cron);
+        }
+
+        error_log('Simple DTE: Plugin desactivado - Los datos se conservan. Para eliminar completamente, desinstale el plugin.');
     }
 
     /**

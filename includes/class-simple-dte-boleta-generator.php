@@ -80,6 +80,23 @@ class Simple_DTE_Boleta_Generator {
             'order_id' => $order->get_id()
         ), $order->get_id());
 
+        // Enviar por email si está habilitado
+        $auto_email = get_option('simple_dte_auto_email_enabled', false);
+        if ($auto_email) {
+            // Obtener ruta del PDF si existe
+            $pdf_path = $order->get_meta('_simple_dte_pdf_path');
+            if (!empty($pdf_path) && file_exists($pdf_path)) {
+                $envio_email = Simple_DTE_Email::enviar_boleta_cliente($order, $pdf_path);
+                if (is_wp_error($envio_email)) {
+                    Simple_DTE_Logger::warning('No se pudo enviar boleta por email', array(
+                        'order_id' => $order->get_id(),
+                        'folio' => $folio,
+                        'error' => $envio_email->get_error_message()
+                    ), $order->get_id());
+                }
+            }
+        }
+
         return array(
             'success' => true,
             'folio' => $folio,
@@ -251,29 +268,146 @@ class Simple_DTE_Boleta_Generator {
 
     /**
      * Obtener siguiente folio disponible
+     *
+     * Funcionalidades:
+     * - Cambio automático de CAF cuando se agota
+     * - Alerta cuando quedan menos del 10% de folios
+     * - Marcado de CAF como "usado" al agotarse
      */
     private static function obtener_siguiente_folio() {
         global $wpdb;
 
         $table = $wpdb->prefix . 'simple_dte_folios';
 
-        // Obtener CAF activo para boletas (tipo 39)
+        // 1. Obtener CAF activo para boletas (tipo 39)
         $caf = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $table WHERE tipo_dte = %d AND estado = 'activo' ORDER BY id DESC LIMIT 1",
             39
         ));
 
         if (!$caf) {
-            return new WP_Error('no_caf', __('No hay CAF activo para boletas electrónicas', 'simple-dte'));
+            return new WP_Error('no_caf', __('No hay CAF activo para boletas electrónicas. Por favor sube un archivo CAF.', 'simple-dte'));
         }
 
         $siguiente_folio = (int) $caf->folio_actual + 1;
 
+        // 2. Verificar si se agotó el CAF actual
         if ($siguiente_folio > $caf->folio_hasta) {
-            return new WP_Error('folios_agotados', __('Se agotaron los folios del CAF actual', 'simple-dte'));
+
+            Simple_DTE_Logger::info('CAF agotado, buscando siguiente CAF disponible', array(
+                'caf_id' => $caf->id,
+                'folio_ultimo' => $caf->folio_hasta
+            ));
+
+            // 2.1 Marcar CAF actual como usado
+            $wpdb->update(
+                $table,
+                array('estado' => 'usado'),
+                array('id' => $caf->id),
+                array('%s'),
+                array('%d')
+            );
+
+            // 2.2 Buscar siguiente CAF disponible (puede estar como 'pendiente' o 'activo')
+            $siguiente_caf = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $table
+                 WHERE tipo_dte = %d
+                 AND estado IN ('pendiente', 'activo')
+                 AND id != %d
+                 ORDER BY folio_desde ASC
+                 LIMIT 1",
+                39,
+                $caf->id
+            ));
+
+            if ($siguiente_caf) {
+                // 2.3 Activar siguiente CAF
+                $wpdb->update(
+                    $table,
+                    array('estado' => 'activo'),
+                    array('id' => $siguiente_caf->id),
+                    array('%s'),
+                    array('%d')
+                );
+
+                Simple_DTE_Logger::info('✅ CAF automáticamente activado', array(
+                    'caf_id' => $siguiente_caf->id,
+                    'folio_desde' => $siguiente_caf->folio_desde,
+                    'folio_hasta' => $siguiente_caf->folio_hasta,
+                    'total_folios' => ($siguiente_caf->folio_hasta - $siguiente_caf->folio_desde + 1)
+                ));
+
+                // Retornar primer folio del nuevo CAF
+                return (int) $siguiente_caf->folio_desde;
+            }
+
+            // 2.4 No hay más CAFs disponibles
+            Simple_DTE_Logger::error('❌ No hay más CAFs disponibles');
+
+            return new WP_Error(
+                'folios_agotados',
+                __('Se agotaron todos los folios disponibles. Por favor sube un nuevo archivo CAF del SII.', 'simple-dte')
+            );
+        }
+
+        // 3. Verificar folios bajos (menos del 10%)
+        $total_folios = $caf->folio_hasta - $caf->folio_desde + 1;
+        $folios_restantes = $caf->folio_hasta - ($siguiente_folio - 1);
+        $porcentaje = ($folios_restantes / $total_folios) * 100;
+
+        if ($porcentaje < 10 && $porcentaje > 0) {
+            self::alertar_folios_bajos($folios_restantes, $caf);
         }
 
         return $siguiente_folio;
+    }
+
+    /**
+     * Alertar cuando quedan pocos folios (menos del 10%)
+     *
+     * @param int $folios_restantes Cantidad de folios restantes
+     * @param object $caf Objeto del CAF activo
+     */
+    private static function alertar_folios_bajos($folios_restantes, $caf) {
+        // Solo alertar una vez por CAF para no spam
+        $transient_key = 'simple_dte_alerta_folios_' . $caf->id;
+        $alerta_enviada = get_transient($transient_key);
+
+        if (!$alerta_enviada) {
+            // Registrar en logs
+            Simple_DTE_Logger::warning('⚠️ Folios bajos - Quedan menos del 10%', array(
+                'caf_id' => $caf->id,
+                'folios_restantes' => $folios_restantes,
+                'folio_actual' => $caf->folio_actual,
+                'folio_hasta' => $caf->folio_hasta,
+                'porcentaje' => round(($folios_restantes / ($caf->folio_hasta - $caf->folio_desde + 1)) * 100, 2) . '%'
+            ));
+
+            // Enviar email al administrador
+            $admin_email = get_option('admin_email');
+            $razon_social = get_option('simple_dte_razon_social', get_bloginfo('name'));
+
+            $subject = '⚠️ Alerta: Quedan Pocos Folios - Simple DTE';
+            $message = "Hola,\n\n";
+            $message .= "El sistema de boletas electrónicas de {$razon_social} está quedándose sin folios.\n\n";
+            $message .= "Detalles:\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $message .= "• Folios restantes: {$folios_restantes}\n";
+            $message .= "• CAF actual: {$caf->folio_desde} a {$caf->folio_hasta}\n";
+            $message .= "• Folio en uso: {$caf->folio_actual}\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $message .= "ACCIÓN REQUERIDA:\n";
+            $message .= "Por favor descarga un nuevo archivo CAF desde el sitio del SII y súbelo en:\n";
+            $message .= "WordPress → WooCommerce → Simple DTE → Folios\n\n";
+            $message .= "Esto evitará interrupciones en la generación de boletas.\n\n";
+            $message .= "Saludos,\n";
+            $message .= "Sistema Simple DTE";
+
+            wp_mail($admin_email, $subject, $message);
+
+            // Marcar alerta como enviada (válido por 7 días para este CAF específico)
+            set_transient($transient_key, true, 7 * DAY_IN_SECONDS);
+        }
     }
 
     /**

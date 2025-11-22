@@ -53,9 +53,6 @@ class Simple_DTE_Metabox {
         $tipo = $order->get_meta('_simple_dte_tipo');
         $fecha = $order->get_meta('_simple_dte_fecha_generacion');
 
-        $tiene_nc = $order->get_meta('_simple_dte_nc_generada');
-        $folio_nc = $order->get_meta('_simple_dte_nc_folio');
-
         $ambiente = Simple_DTE_Helpers::get_ambiente();
 
         wp_nonce_field('simple_dte_metabox', 'simple_dte_metabox_nonce');
@@ -76,30 +73,6 @@ class Simple_DTE_Metabox {
                     <p>Tipo: <?php echo esc_html(self::get_tipo_nombre($tipo)); ?></p>
                     <?php if ($fecha): ?>
                         <p>Fecha: <?php echo esc_html(date_i18n('d/m/Y H:i', strtotime($fecha))); ?></p>
-                    <?php endif; ?>
-                </div>
-
-                <hr>
-
-                <div class="dte-actions">
-                    <?php if ($tiene_nc !== 'yes'): ?>
-                        <p>
-                            <label for="codigo_ref"><?php _e('Tipo de Nota de Crédito:', 'simple-dte'); ?></label>
-                            <select id="codigo_ref" class="widefat">
-                                <option value="1"><?php _e('1 - Anulación', 'simple-dte'); ?></option>
-                                <option value="2"><?php _e('2 - Corregir texto', 'simple-dte'); ?></option>
-                                <option value="3"><?php _e('3 - Corregir montos', 'simple-dte'); ?></option>
-                            </select>
-                        </p>
-                        <p>
-                            <button type="button" class="button button-secondary widefat simple-dte-generar-nc"
-                                    data-order-id="<?php echo esc_attr($order->get_id()); ?>">
-                                <?php _e('Generar Nota de Crédito', 'simple-dte'); ?>
-                            </button>
-                        </p>
-                    <?php else: ?>
-                        <p><strong><?php _e('Nota de Crédito generada', 'simple-dte'); ?></strong></p>
-                        <p>Folio N/C: <strong><?php echo esc_html($folio_nc); ?></strong></p>
                     <?php endif; ?>
                 </div>
 

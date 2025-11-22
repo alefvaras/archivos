@@ -1,0 +1,34 @@
+# Test Reports (generados automáticamente)
+test-report-*.txt
+
+# PDFs generados
+pdfs/*.pdf
+
+# XMLs temporales de tests
+xmls/boleta_test_*.xml
+
+# Archivos temporales PHP
+*.tmp
+*.log
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Editor config
+.vscode/
+.idea/
+
+# Certificados y claves privadas (seguridad)
+*.pfx
+*.p12
+*.key
+*.pem
+
+# CAF files (folios del SII - datos sensibles)
+Folios*.xml
+FoliosSII*.xml
+
+# Configuración local
+config-local.php
+.env.local

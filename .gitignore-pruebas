@@ -1,0 +1,42 @@
+# Ignorar archivos generados por las pruebas
+# Agregar estas líneas al .gitignore principal del proyecto
+
+# Reportes de pruebas
+reportes/*.json
+reportes/*.html
+
+# XMLs generados
+xmls/*.xml
+
+# PDFs generados
+pdfs/*.pdf
+
+# Logs
+logs/*.log
+logs/*.txt
+
+# Archivos temporales
+temp/*
+
+# Certificados y claves privadas (NUNCA commitear)
+*.pfx
+*.p12
+*.key
+*.pem
+
+# Archivos CAF (folios - contienen información sensible)
+*CAF*.xml
+Folios*.xml
+
+# Variables de entorno
+.env
+.env.local
+.env.production
+.env.certificacion
+
+# Mantener directorios pero ignorar contenido
+!reportes/.gitkeep
+!xmls/.gitkeep
+!pdfs/.gitkeep
+!logs/.gitkeep
+!temp/.gitkeep

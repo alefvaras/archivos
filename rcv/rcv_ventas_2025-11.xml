@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<LibroCompraVenta xmlns="http://www.sii.cl/SiiDte" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sii.cl/SiiDte LibroCV_v10.xsd" version="1.0">
+<EnvioLibro ID="Envio">
+<Caratula>
+<RutEmisorLibro>76063822-6</RutEmisorLibro>
+<RutEnvia>76063822-6</RutEnvia>
+<PeriodoTributario>2025-11</PeriodoTributario>
+<FchResol>2025-11-16</FchResol>
+<NroResol>0</NroResol>
+<TipoOperacion>VENTA</TipoOperacion>
+<TipoLibro>ESPECIAL</TipoLibro>
+<TipoEnvio>TOTAL</TipoEnvio>
+<FolioNotificacion>1</FolioNotificacion>
+</Caratula>
+<ResumenPeriodo>
+<TpoDoc>39</TpoDoc>
+<TotDoc>7</TotDoc>
+<TotMntNeto>4647062</TotMntNeto>
+<TotMntIVA>882938</TotMntIVA>
+<TotMntTotal>5530000</TotMntTotal>
+</ResumenPeriodo>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1902</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1903</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1904</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1905</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1906</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1907</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+<Detalle>
+<TpoDoc>39</TpoDoc>
+<Folio>1908</Folio>
+<FchDoc>2025-11-16</FchDoc>
+<RUTDoc>66666666-6</RUTDoc>
+<RznSoc>Alejandro Varas</RznSoc>
+<MntNeto>663866</MntNeto>
+<TasaIVA>19</TasaIVA>
+<IVA>126134</IVA>
+<MntTotal>790000</MntTotal>
+</Detalle>
+</EnvioLibro>
+</LibroCompraVenta>

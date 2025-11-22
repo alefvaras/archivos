@@ -27,8 +27,8 @@ class Simple_DTE_Admin {
 
         // AJAX handlers
         add_action('wp_ajax_simple_dte_generar_boleta', array(__CLASS__, 'ajax_generar_boleta'));
-        add_action('wp_ajax_simple_dte_generar_nc', array(__CLASS__, 'ajax_generar_nc'));
         add_action('wp_ajax_simple_dte_upload_caf', array(__CLASS__, 'ajax_upload_caf'));
+        add_action('wp_ajax_simple_dte_solicitar_folios', array(__CLASS__, 'ajax_solicitar_folios'));
     }
 
     /**
@@ -175,8 +175,8 @@ class Simple_DTE_Admin {
 
                 if ($tipo == 39) {
                     echo '<br><small>Boleta</small>';
-                } elseif ($tipo == 61) {
-                    echo '<br><small>N/C</small>';
+                } elseif ($tipo == 41) {
+                    echo '<br><small>Boleta Exenta</small>';
                 }
             } else {
                 echo '<span style="color: gray;">—</span>';
@@ -213,40 +213,6 @@ class Simple_DTE_Admin {
         }
 
         $resultado = Simple_DTE_Boleta_Generator::generar_desde_orden($order, $opciones);
-
-        if (is_wp_error($resultado)) {
-            wp_send_json_error(array('message' => $resultado->get_error_message()));
-        }
-
-        wp_send_json_success($resultado);
-    }
-
-    /**
-     * AJAX: Generar nota de crédito
-     */
-    public static function ajax_generar_nc() {
-        check_ajax_referer('simple_dte_nonce', 'nonce');
-
-        if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
-        }
-
-        $order_id = isset($_POST['order_id']) ? intval($_POST['order_id']) : 0;
-        $codigo_ref = isset($_POST['codigo_ref']) ? intval($_POST['codigo_ref']) : 1;
-
-        if (!$order_id) {
-            wp_send_json_error(array('message' => __('ID de orden requerido', 'simple-dte')));
-        }
-
-        $order = wc_get_order($order_id);
-
-        if (!$order) {
-            wp_send_json_error(array('message' => __('Orden no encontrada', 'simple-dte')));
-        }
-
-        $resultado = Simple_DTE_Nota_Credito_Generator::generar_desde_orden($order, null, array(
-            'codigo_ref' => $codigo_ref
-        ));
 
         if (is_wp_error($resultado)) {
             wp_send_json_error(array('message' => $resultado->get_error_message()));
@@ -337,9 +303,9 @@ class Simple_DTE_Admin {
             'folio_desde' => $folio_desde,
             'folio_hasta' => $folio_hasta,
             'folio_actual' => $folio_desde - 1,
-            'fecha_carga' => current_time('mysql'),
-            'archivo_caf' => $filepath,
-            'estado' => 'activo'
+            'xml_path' => $filepath,
+            'estado' => 'activo',
+            'created_at' => current_time('mysql')
         ), array('%d', '%d', '%d', '%d', '%s', '%s', '%s'));
 
         Simple_DTE_Logger::info('CAF cargado', array(
@@ -355,5 +321,43 @@ class Simple_DTE_Admin {
             'folio_hasta' => $folio_hasta,
             'mensaje' => sprintf(__('CAF cargado: Folios %d a %d', 'simple-dte'), $folio_desde, $folio_hasta)
         );
+    }
+
+    /**
+     * AJAX: Solicitar folios a SimpleAPI
+     */
+    public static function ajax_solicitar_folios() {
+        check_ajax_referer('simple_dte_nonce', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permisos insuficientes', 'simple-dte')));
+        }
+
+        $tipo_dte = isset($_POST['tipo_dte']) ? intval($_POST['tipo_dte']) : 0;
+        $cantidad = isset($_POST['cantidad']) ? intval($_POST['cantidad']) : 0;
+
+        if (!$tipo_dte) {
+            wp_send_json_error(array('message' => __('Tipo de DTE requerido', 'simple-dte')));
+        }
+
+        if (!$cantidad || $cantidad < 1 || $cantidad > 1000) {
+            wp_send_json_error(array('message' => __('Cantidad inválida (debe estar entre 1 y 1000)', 'simple-dte')));
+        }
+
+        // Obtener ruta del certificado
+        $cert_path = get_option('simple_dte_cert_path', '');
+
+        if (empty($cert_path) || !file_exists($cert_path)) {
+            wp_send_json_error(array('message' => __('Certificado digital no configurado o no encontrado', 'simple-dte')));
+        }
+
+        // Solicitar folios a la API
+        $resultado = Simple_DTE_API_Client::solicitar_folios($tipo_dte, $cantidad, $cert_path);
+
+        if (is_wp_error($resultado)) {
+            wp_send_json_error(array('message' => $resultado->get_error_message()));
+        }
+
+        wp_send_json_success($resultado);
     }
 }
